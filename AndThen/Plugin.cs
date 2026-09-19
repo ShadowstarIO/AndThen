@@ -24,7 +24,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static IGameConfig GameConfig { get; private set; } = null!;
 
-    public const string AppVersion = "0.1.0.0";
+    public const string AppVersion = "0.0.1.0";
     private const string CommandName = "/andthen";
     private const string CommandAlias = "/atn";
 
