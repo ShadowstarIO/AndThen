@@ -13,36 +13,31 @@ public enum ChipKind
     DataCenter = 5,
     PartySize = 6,
     Duty = 7,
+    Group = 8,
+    Time = 9,
+    Weather = 10,
+    Nearby = 11,
 }
 
 public enum ThenKind
 {
     Command = 0,
     Wait = 1,
-    Setting = 2,
-    Status = 3,
+    Status = 2,
+    Config = 3,
 }
 
-public enum SettingKey
+public enum ApplyMode
 {
-    Fps = 0,
-    MouseLock = 1,
-    MusicOn = 2,
-    SoundOn = 3,
-    DisplayHead = 4,
-    DisplayWeapon = 5,
-    HudLayout = 6,
+    Off = 0,
+    Dialog = 1,
+    Auto = 2,
 }
 
-public enum OnlineStatusAction
+public enum ConfigSection
 {
-    LeaveAlone = 0,
-    Online = 1,
-    Away = 2,
-    Busy = 3,
-    Roleplaying = 4,
-    LookingToMeld = 5,
-    LookingForParty = 6,
+    System = 0,
+    Ui = 1,
 }
 
 [Serializable]
@@ -61,6 +56,10 @@ public class RuleChip
         ChipKind.DataCenter => $"DC {Value}",
         ChipKind.PartySize => $"Party {Value}",
         ChipKind.Duty => $"Duty {Value}",
+        ChipKind.Group => $"Group {Value}",
+        ChipKind.Time => $"Time {Value}",
+        ChipKind.Weather => $"Weather {Value}",
+        ChipKind.Nearby => $"Nearby {Value}",
         _ => Value,
     };
 }
@@ -69,15 +68,16 @@ public class RuleChip
 public class ThenRow
 {
     public ThenKind Kind { get; set; } = ThenKind.Command;
-    public SettingKey Setting { get; set; }
+    public ConfigSection Section { get; set; }
+    public string Option { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
     public int WaitMs { get; set; }
 
     public string Label => Kind switch
     {
         ThenKind.Wait => WaitMs <= 0 ? "Wait" : $"Wait {WaitMs}ms",
-        ThenKind.Setting => $"{Setting} = {Value}",
         ThenKind.Status => $"Status {Value}",
+        ThenKind.Config => string.IsNullOrWhiteSpace(Option) ? "Config" : $"{Option} = {Value}",
         _ => string.IsNullOrWhiteSpace(Value) ? "/command" : Value,
     };
 }
@@ -89,12 +89,21 @@ public class ThenRule
     public string Name { get; set; } = "New rule";
     public string Notes { get; set; } = string.Empty;
     public string Folder { get; set; } = string.Empty;
-    public bool Enabled { get; set; }
-    public int Priority { get; set; }
+    public bool Enabled { get; set; } = true;
+    public ApplyMode Mode { get; set; } = ApplyMode.Off;
     public List<RuleChip> AndChips { get; set; } = [];
     public List<RuleChip> OrChips { get; set; } = [];
     public List<RuleChip> NotChips { get; set; } = [];
     public List<ThenRow> Then { get; set; } = [];
 
     public string FolderKey => string.IsNullOrWhiteSpace(Folder) ? string.Empty : Folder.Trim();
+    public string CommandToken => (Name ?? string.Empty).Trim();
+}
+
+[Serializable]
+public class AppliedLine
+{
+    public DateTime At { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Detail { get; set; } = string.Empty;
 }
