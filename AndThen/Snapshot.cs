@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.Enums;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using Lumina.Excel.Sheets;
 
 namespace AndThen;
@@ -17,6 +19,12 @@ public sealed class GameSnapshot
     public string JobAbbr { get; init; } = string.Empty;
     public string Role { get; init; } = string.Empty;
     public int PartySize { get; init; }
+    public string Group { get; init; } = "Solo";
+    public int Nearby { get; init; }
+    public int LocalHour { get; init; }
+    public int EorzeaHour { get; init; }
+    public string Weekday { get; init; } = string.Empty;
+    public string Weather { get; init; } = string.Empty;
     public HashSet<string> States { get; init; } = [];
 
     public static GameSnapshot Capture()
@@ -28,12 +36,38 @@ public sealed class GameSnapshot
         var dc = world?.DataCenter.ValueNullable;
         uint territoryId = Plugin.ClientState.TerritoryType;
         var territory = Plugin.DataManager.GetExcelSheet<TerritoryType>().GetRowOrDefault(territoryId);
+        var party = Plugin.PartyList.Length;
+        var intended = territory?.TerritoryIntendedUse.RowId ?? 0;
+        var allianceZone = intended is 41 or 48 or 61;
+        var group = allianceZone || party >= 24 ? "Alliance"
+            : party >= 5 ? "Full"
+            : party >= 2 ? "Light"
+            : "Solo";
+
+        var nearby = 0;
+        if (player is not null)
+        {
+            foreach (var obj in Plugin.ObjectTable)
+            {
+                if (obj.ObjectKind != ObjectKind.Pc || obj.EntityId == player.EntityId) continue;
+                var d = obj.Position - player.Position;
+                if (d.LengthSquared() <= 30f * 30f) nearby++;
+            }
+        }
+
+        var now = DateTime.Now;
+        var unix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var eorzeaHour = (int)((unix * 3600.0 / 175.0 / 3600.0) % 24);
 
         var states = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        Add(states, "LoggedIn", logged);
         Add(states, "InCombat", Flag(ConditionFlag.InCombat));
-        Add(states, "InDuty", Flag(ConditionFlag.BoundByDuty) || Flag(ConditionFlag.BoundByDuty56));
-        Add(states, "Cutscene", Flag(ConditionFlag.WatchingCutscene) || Flag(ConditionFlag.OccupiedInCutSceneEvent));
-        Add(states, "Mounted", Flag(ConditionFlag.Mounted));
+        Add(states, "InDuty", DutySolid());
+        Add(states, "DutyReady", Flag(ConditionFlag.WaitingForDuty) || Flag(ConditionFlag.WaitingForDutyFinder));
+        Add(states, "InQueue", Flag(ConditionFlag.InDutyQueue));
+        Add(states, "Cutscene", Flag(ConditionFlag.WatchingCutscene) || Flag(ConditionFlag.WatchingCutscene78) || Flag(ConditionFlag.OccupiedInCutSceneEvent));
+        Add(states, "GPose", Flag(ConditionFlag.WatchingCutscene78) && !Flag(ConditionFlag.BoundByDuty));
+        Add(states, "Mounted", Flag(ConditionFlag.Mounted) || Flag(ConditionFlag.Mounted2));
         Add(states, "Flying", Flag(ConditionFlag.InFlight));
         Add(states, "Swimming", Flag(ConditionFlag.Swimming));
         Add(states, "Diving", Flag(ConditionFlag.Diving));
@@ -43,17 +77,22 @@ public sealed class GameSnapshot
         Add(states, "Occupied", Flag(ConditionFlag.Occupied) || Flag(ConditionFlag.Occupied30) || Flag(ConditionFlag.Occupied33) || Flag(ConditionFlag.Occupied38) || Flag(ConditionFlag.Occupied39));
         Add(states, "BetweenAreas", Flag(ConditionFlag.BetweenAreas) || Flag(ConditionFlag.BetweenAreas51));
         Add(states, "Jumping", Flag(ConditionFlag.Jumping) || Flag(ConditionFlag.Jumping61));
-        Add(states, "Casting", Flag(ConditionFlag.Casting));
+        Add(states, "Casting", Flag(ConditionFlag.Casting) || Flag(ConditionFlag.Casting87));
         Add(states, "Fishing", Flag(ConditionFlag.Fishing));
         Add(states, "PvP", Flag(ConditionFlag.PvPDisplayActive));
-        Add(states, "UsingHousing", Flag(ConditionFlag.UsingHousingFunctions));
+        Add(states, "Housing", Flag(ConditionFlag.UsingHousingFunctions));
         Add(states, "WeaponDrawn", player?.StatusFlags.HasFlag(Dalamud.Game.ClientState.Objects.Enums.StatusFlags.WeaponOut) == true);
-        Add(states, "InParty", Plugin.PartyList.Length > 0);
+        Add(states, "InParty", party > 0);
+        Add(states, "HasTarget", Plugin.TargetManager.Target is not null);
+        Add(states, "Emoting", Flag(ConditionFlag.Emoting));
+        Add(states, "Performing", Flag(ConditionFlag.Performing));
+        Add(states, "Trade", Flag(ConditionFlag.TradeOpen));
+        Add(states, "Fashion", Flag(ConditionFlag.UsingFashionAccessory));
+        Add(states, "RolePlaying", Flag(ConditionFlag.RolePlaying));
 
-        var role = RoleOf(job?.Role ?? 0, job?.ClassJobCategory.RowId ?? 0);
         return new GameSnapshot
         {
-            Now = DateTime.Now,
+            Now = now,
             LoggedIn = logged,
             TerritoryId = territoryId,
             TerritoryName = territory?.PlaceName.ValueNullable?.Name.ToString() ?? string.Empty,
@@ -61,16 +100,28 @@ public sealed class GameSnapshot
             DataCenterName = dc?.Name.ToString() ?? string.Empty,
             JobId = job?.RowId ?? 0,
             JobAbbr = job?.Abbreviation.ToString() ?? string.Empty,
-            Role = role,
-            PartySize = Plugin.PartyList.Length,
+            Role = RoleOf(job?.Role ?? 0, job?.ClassJobCategory.RowId ?? 0),
+            PartySize = party,
+            Group = group,
+            Nearby = nearby,
+            LocalHour = now.Hour,
+            EorzeaHour = eorzeaHour,
+            Weekday = now.DayOfWeek.ToString(),
+            Weather = ReadWeather(),
             States = states,
         };
     }
 
     public string Line() =>
         LoggedIn
-            ? $"{JobAbbr} · {WorldName} · {TerritoryName} ({TerritoryId}) · party {PartySize}"
+            ? $"{JobAbbr} · {Group} · {WorldName} · {TerritoryName} · ET {EorzeaHour:00} · {Weather}"
             : "Not logged in";
+
+    private static bool DutySolid() =>
+        (Flag(ConditionFlag.BoundByDuty) || Flag(ConditionFlag.BoundByDuty56) || Flag(ConditionFlag.BoundByDuty95))
+        && !Flag(ConditionFlag.BetweenAreas)
+        && !Flag(ConditionFlag.BetweenAreas51)
+        && !Flag(ConditionFlag.OccupiedInCutSceneEvent);
 
     private static bool Flag(ConditionFlag flag) => Plugin.Condition[flag];
 
@@ -90,5 +141,24 @@ public sealed class GameSnapshot
             2 or 3 => "DPS",
             _ => string.Empty,
         };
+    }
+
+    private static string ReadWeather()
+    {
+        try
+        {
+            unsafe
+            {
+                var wm = WeatherManager.Instance();
+                if (wm == null) return string.Empty;
+                var id = wm->GetCurrentWeather();
+                var row = Plugin.DataManager.GetExcelSheet<Weather>().GetRowOrDefault(id);
+                return row?.Name.ToString() ?? id.ToString();
+            }
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 }
