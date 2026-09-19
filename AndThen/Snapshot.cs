@@ -67,7 +67,7 @@ public sealed class GameSnapshot
         Add(states, "InQueue", Flag(ConditionFlag.InDutyQueue));
         Add(states, "Cutscene", Flag(ConditionFlag.WatchingCutscene) || Flag(ConditionFlag.WatchingCutscene78) || Flag(ConditionFlag.OccupiedInCutSceneEvent));
         Add(states, "GPose", Flag(ConditionFlag.WatchingCutscene78) && !Flag(ConditionFlag.BoundByDuty));
-        Add(states, "Mounted", Flag(ConditionFlag.Mounted) || Flag(ConditionFlag.Mounted2));
+        Add(states, "Mounted", Flag(ConditionFlag.Mounted) || Flag(ConditionFlag.RidingPillion));
         Add(states, "Flying", Flag(ConditionFlag.InFlight));
         Add(states, "Swimming", Flag(ConditionFlag.Swimming));
         Add(states, "Diving", Flag(ConditionFlag.Diving));
