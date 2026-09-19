@@ -20,21 +20,23 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static IPartyList PartyList { get; private set; } = null!;
+    [PluginService] internal static ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] internal static IChatGui Chat { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static IGameConfig GameConfig { get; private set; } = null!;
 
-    public const string AppVersion = "0.0.1.0";
+    public const string AppVersion = "0.0.1.1";
     private const string CommandName = "/andthen";
     private const string CommandAlias = "/atn";
 
     internal static Plugin Instance { get; private set; } = null!;
     public Configuration Configuration { get; }
     public readonly WindowSystem WindowSystem = new("AndThen");
+    internal Engine Engine { get; }
 
-    private readonly Engine engine;
     private readonly MainWindow mainWindow;
     private readonly ConfigWindow configWindow;
+    private readonly DialogWindow dialogWindow;
     private bool paused;
     private DateTime? pauseUntil;
 
@@ -42,28 +44,19 @@ public sealed class Plugin : IDalamudPlugin
     {
         Instance = this;
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        engine = new Engine(Configuration);
+        if (Configuration.PollSec <= 0) Configuration.PollSec = 0.5f;
+        Engine = new Engine(Configuration);
 
         mainWindow = new MainWindow(this);
         configWindow = new ConfigWindow(this);
+        dialogWindow = new DialogWindow(this);
         WindowSystem.AddWindow(mainWindow);
         WindowSystem.AddWindow(configWindow);
+        WindowSystem.AddWindow(dialogWindow);
 
-        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
-        {
-            HelpMessage = "AndThen. /atn help",
-        });
-        try
-        {
-            CommandManager.AddHandler(CommandAlias, new CommandInfo(OnCommand)
-            {
-                HelpMessage = "Alias for /andthen.",
-            });
-        }
-        catch (Exception ex)
-        {
-            Log.Verbose(ex, "Could not register /atn");
-        }
+        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand) { HelpMessage = "AndThen. /atn help" });
+        try { CommandManager.AddHandler(CommandAlias, new CommandInfo(OnCommand) { HelpMessage = "Alias for /andthen." }); }
+        catch (Exception ex) { Log.Verbose(ex, "Could not register /atn"); }
 
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
@@ -73,8 +66,7 @@ public sealed class Plugin : IDalamudPlugin
         ClientState.Login += OnLogin;
         ClientState.Logout += OnLogout;
 
-        if (Configuration.OpenUiOnLoad)
-            mainWindow.IsOpen = true;
+        if (Configuration.OpenUiOnLoad) mainWindow.IsOpen = true;
     }
 
     public void Dispose()
@@ -93,8 +85,9 @@ public sealed class Plugin : IDalamudPlugin
 
     public void ToggleConfigUi() => configWindow.Toggle();
     public void ToggleMainUi() => mainWindow.Toggle();
-    public GameSnapshot Snapshot() => engine.LastSnap.LoggedIn ? engine.LastSnap : GameSnapshot.Capture();
-    public System.Collections.Generic.IReadOnlyList<ThenRule> CurrentMatches() => engine.LastMatches;
+    public void OpenAsk() { dialogWindow.IsOpen = true; }
+    public GameSnapshot Snapshot() => Engine.LastSnap.LoggedIn ? Engine.LastSnap : GameSnapshot.Capture();
+    public System.Collections.Generic.IReadOnlyList<ThenRule> CurrentMatches() => Engine.LastMatches;
     public static bool CharacterReady =>
         ClientState.IsLoggedIn && ObjectTable.LocalPlayer is not null && PlayerState.IsLoaded;
     public bool IsPaused => paused;
@@ -106,41 +99,20 @@ public sealed class Plugin : IDalamudPlugin
         catch { /* chat not ready */ }
     }
 
-    public void RequestEval() => engine.Tick(false);
-
     public void ApplyNow()
     {
-        if (paused)
-        {
-            Notify("Paused.");
-            return;
-        }
-        engine.Tick(true);
+        if (paused) { Notify("Paused."); return; }
+        Engine.Tick(true);
     }
 
     public void TestRule(ThenRule rule)
     {
-        if (!CharacterReady)
-        {
-            Notify("Not logged in.");
-            return;
-        }
-        var snap = GameSnapshot.Capture();
-        Notify(ChipEval.Matches(rule, snap)
-            ? $"[{rule.Name}] matches now. Running THEN."
-            : $"[{rule.Name}] does not match now. Running THEN anyway.");
-        engine.Test(rule);
+        if (!CharacterReady) { Notify("Not logged in."); return; }
+        Engine.Test(rule);
     }
 
-    public void MovePriority(ThenRule rule, int delta)
-    {
-        var ordered = Configuration.Rules.OrderBy(r => r.Priority).ToList();
-        var i = ordered.FindIndex(r => r.Id == rule.Id);
-        var j = i + (delta > 0 ? 1 : -1);
-        if (i < 0 || j < 0 || j >= ordered.Count) return;
-        (ordered[i].Priority, ordered[j].Priority) = (ordered[j].Priority, ordered[i].Priority);
-        Configuration.Save();
-    }
+    public ThenRule? FindRule(string name) =>
+        Configuration.Rules.FirstOrDefault(r => r.CommandToken.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
 
     public void DuplicateRule(ThenRule rule)
     {
@@ -148,8 +120,8 @@ public sealed class Plugin : IDalamudPlugin
         if (copy is null) return;
         copy.Id = Guid.NewGuid().ToString("N");
         copy.Name = rule.Name + " (copy)";
-        copy.Priority = Configuration.Rules.Count == 0 ? 10 : Configuration.Rules.Max(r => r.Priority) + 10;
         copy.Enabled = false;
+        copy.Mode = ApplyMode.Off;
         Configuration.Rules.Add(copy);
         Configuration.Save();
         mainWindow.OpenRule(copy.Id);
@@ -162,11 +134,22 @@ public sealed class Plugin : IDalamudPlugin
         if (string.IsNullOrWhiteSpace(rule.Name)) rule.Name = "Imported rule";
         else rule.Name += " (copy)";
         rule.Enabled = false;
+        rule.Mode = ApplyMode.Off;
         Configuration.Rules.Add(rule);
         Configuration.Save();
         mainWindow.OpenRule(rule.Id);
         error = string.Empty;
         return true;
+    }
+
+    public void MoveRule(ThenRule rule, int delta)
+    {
+        var i = Configuration.Rules.IndexOf(rule);
+        var j = i + delta;
+        if (i < 0 || j < 0 || j >= Configuration.Rules.Count) return;
+        Configuration.Rules.RemoveAt(i);
+        Configuration.Rules.Insert(j, rule);
+        Configuration.Save();
     }
 
     private void OnFramework(IFramework _)
@@ -177,49 +160,42 @@ public sealed class Plugin : IDalamudPlugin
             pauseUntil = null;
             Notify("Pause ended.");
         }
-        if (!CharacterReady)
-        {
-            engine.Reset();
-            return;
-        }
+        if (!CharacterReady) { Engine.Reset(); return; }
         if (paused) return;
-        engine.Tick(false);
+        Engine.Tick(false);
+        if (Engine.DialogOpenNeeded)
+        {
+            Engine.DialogOpenNeeded = false;
+            dialogWindow.IsOpen = true;
+        }
     }
 
-    private void OnTerritory(uint _) => engine.Tick(false);
-    private void OnLogin() => engine.Reset();
-    private void OnLogout(int type, int code) => engine.Reset();
+    private void OnTerritory(uint _) => Engine.Tick(false);
+    private void OnLogin() => Engine.Reset();
+    private void OnLogout(int type, int code) => Engine.Reset();
 
     private void OnCommand(string command, string args)
     {
-        var parts = (args ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var text = (args ?? string.Empty).Trim();
+        var parts = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var key = parts.Length == 0 ? string.Empty : parts[0].ToLowerInvariant();
         switch (key)
         {
             case "help":
                 Notify("/atn — window");
-                Notify("/atn apply — run matching rules now");
-                Notify("/atn now — preview matches");
-                Notify("/atn pause [seconds]");
-                Notify("/atn resume");
-                Notify("/atn zone");
-                Notify("/atn config");
+                Notify("/atn Name — run that rule");
+                Notify("/atn ask — show dialog list");
+                Notify("/atn apply | now | pause | resume | zone | config");
                 break;
-            case "config":
-                ToggleConfigUi();
-                break;
+            case "config": ToggleConfigUi(); break;
             case "apply":
-            case "update":
-                ApplyNow();
-                break;
+            case "update": ApplyNow(); break;
             case "now":
-            {
-                engine.Tick(false);
-                if (engine.LastMatches.Count == 0) Notify("No matching rule.");
-                else foreach (var rule in engine.LastMatches)
-                    Notify($"Match P{rule.Priority} [{rule.Name}]");
+                Engine.Tick(false);
+                if (Engine.LastMatches.Count == 0) Notify("No matching rule.");
+                else foreach (var rule in Engine.LastMatches) Notify($"Match [{rule.Name}]");
                 break;
-            }
+            case "ask": OpenAsk(); break;
             case "pause":
                 paused = true;
                 if (parts.Length > 1 && int.TryParse(parts[1], out var secs) && secs > 0)
@@ -227,24 +203,31 @@ public sealed class Plugin : IDalamudPlugin
                     pauseUntil = DateTime.Now.AddSeconds(secs);
                     Notify($"Paused {secs}s.");
                 }
-                else
-                {
-                    pauseUntil = null;
-                    Notify("Paused.");
-                }
+                else { pauseUntil = null; Notify("Paused."); }
                 break;
             case "resume":
                 paused = false;
                 pauseUntil = null;
                 Notify("Resumed.");
-                engine.Tick(true);
+                Engine.Tick(true);
                 break;
-            case "zone":
-                Notify(Snapshot().Line());
+            case "zone": Notify(Snapshot().Line()); break;
+            case "dry":
+            {
+                var name = parts.Length > 1 ? parts[1] : string.Empty;
+                var rule = string.IsNullOrWhiteSpace(name) ? null : FindRule(name);
+                if (rule is null) Notify("Name a rule: /atn dry Duty start");
+                else foreach (var line in Engine.Preview(rule)) Notify(line);
                 break;
+            }
+            case "": ToggleMainUi(); break;
             default:
-                ToggleMainUi();
+            {
+                var rule = FindRule(text);
+                if (rule is null) { Notify($"No rule named {text}"); ToggleMainUi(); break; }
+                TestRule(rule);
                 break;
+            }
         }
     }
 }
