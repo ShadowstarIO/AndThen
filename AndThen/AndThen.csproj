@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.0.1.1</Version>
+    <Version>0.0.1.2</Version>
     <Author>Xoza</Author>
     <Name>AndThen</Name>
     <Punchline>When conditions match, apply settings and run commands.</Punchline>
@@ -15,7 +15,7 @@
     <DalamudApiLevel>15</DalamudApiLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  <ItemGroup Condition="Exists('..\images\icon.png')">
+  <ItemGroup Condition="Exists('..\\images\\icon.png')">
     <Content Include="..\images\icon.png" Link="images\icon.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\images\icon.png" Link="icon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
