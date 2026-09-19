@@ -5,7 +5,7 @@
 ---
 
 > Early development.
-> Version **0.0.1.1** testing. Folders, Off / Dialog / Auto, searchable config actions, and a first full chip set are in place.
+> Version **0.0.1.2** testing.
 
 ## What it does
 
@@ -20,9 +20,9 @@ Rules do not revert. Write a second rule for the other state.
 ## Features
 
 * **Folders** : expandable groups. Drag a rule onto a folder. Mute a folder to silence it.
-* **Chips wrap** : IF / OR / NOT and THEN rows wrap instead of running off the window.
-* **Conditions** : state, job, role, zone, world, DC, party size, duty, group size, time, weather, nearby count.
-* **THEN** : `/command`, Wait, online status, and any System or UI GameConfig option behind search.
+* **Live chips** : teal means that chip is true right now. Hover for true / false.
+* **Conditions** : state, job, role, zone, world, DC, party size, duty type, group size, place, target, time, weather, nearby count.
+* **THEN** : `/command`, Wait, online status, Notify, and any System or UI GameConfig option behind search.
 * **Pacing** : check interval is seconds. Config writes are spaced so a long stack does not hitch.
 * **Rising edge only** : a rule that stays true does not apply again.
 * **Share** : JSON or `AT1.` from the rule menu. Imports start Off.
@@ -37,15 +37,29 @@ Rules do not revert. Write a second rule for the other state.
 6. `/atn Name` always runs that rule, chips or not.
 7. Two Autos on the same edge: list order, last write wins.
 
+## Chip notes
+
+| Kind | Values |
+| --- | --- |
+| State | InDuty, InCombat, Cutscene, GPose, Mounted, Housing, Sitting, Event, … |
+| Duty | any, none, solid, dungeon, trial, raid, alliance, pvp, deep, field |
+| Place | Town, Overworld, Indoor, Housing, Inn, Sanctuary, PvP, GoldSaucer, DeepDungeon, Field |
+| Time | day, night, dawn, dusk, `et>=18`, `lt>=22`, weekday |
+| Nearby | empty, few, crowded, or `>=12` |
+| Target | none, any, player, npc |
+| Group | Solo, Light, Full, Alliance |
+
+Battle effects, nameplates, camera, and sound are THEN Config rows (search the option name).
+
 ## Install
 
-In-game: `/xlsettings` → **Experimental** → paste into **Custom Plugin Repositories**:
+Testing build from [Releases](https://github.com/ShadowstarIO/AndThen/releases). Open `/andthen` after install.
+
+Custom repo:
 
 ```
-https://raw.githubusercontent.com/ShadowstarIO/XIV/main/repo.json
+https://raw.githubusercontent.com/ShadowstarIO/AndThen/main/repo.json
 ```
-
-Tick **Enabled**, click **+**, then **Save and Close**. Open `/xlplugins` → **All Plugins**, search for **AndThen**, and install.
 
 ## Commands
 
@@ -54,6 +68,7 @@ Tick **Enabled**, click **+**, then **Save and Close**. Open `/xlplugins` → **
 | `/andthen` `/atn` | Window |
 | `/atn Name` | Run that rule now |
 | `/atn ask` | Open the Dialog list |
+| `/atn why Name` | Print whether each chip is true |
 | `/atn apply` | Run matching rules now |
 | `/atn now` | Print matches |
 | `/atn dry Name` | Print that rule's THEN stack |
