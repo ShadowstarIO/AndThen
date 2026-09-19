@@ -6,6 +6,8 @@ AndThen is a Dalamud plugin. Folders on the left, editor on the right. Rules use
 
 `/andthen` or `/atn`.
 
+Current version: **0.0.1.0**. Patches go `0.0.1.1`, `0.0.1.2`, …
+
 ## Install
 
 Dalamud plugin installer → **Settings → Experimental → Custom Plugin Repositories**, add:
@@ -45,6 +47,6 @@ Copy JSON or an `AT1.` share code from the rule menu. Sample rules use generic n
 
 ## Icon
 
-D17 wants `images/icon.png` at 512×512. `images/icon.svg` is the source.
+`images/icon.svg` is the source. D17 wants `images/icon.png` at 512×512 (amber chips, teal arrow, teal action list on a dark tile).
 
 [MIT](LICENSE)
