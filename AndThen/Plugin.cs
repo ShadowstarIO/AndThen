@@ -186,7 +186,7 @@ public sealed class Plugin : IDalamudPlugin
         engine.Tick(false);
     }
 
-    private void OnTerritory(ushort _) => engine.Tick(false);
+    private void OnTerritory(uint _) => engine.Tick(false);
     private void OnLogin() => engine.Reset();
     private void OnLogout(int type, int code) => engine.Reset();
 

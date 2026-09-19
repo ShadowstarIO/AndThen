@@ -37,8 +37,8 @@ public sealed class GameSnapshot
         Add(states, "Flying", Flag(ConditionFlag.InFlight));
         Add(states, "Swimming", Flag(ConditionFlag.Swimming));
         Add(states, "Diving", Flag(ConditionFlag.Diving));
-        Add(states, "Crafting", Flag(ConditionFlag.Crafting) || Flag(ConditionFlag.Crafting40));
-        Add(states, "Gathering", Flag(ConditionFlag.Gathering) || Flag(ConditionFlag.Gathering42));
+        Add(states, "Crafting", Flag(ConditionFlag.Crafting) || Flag(ConditionFlag.ExecutingCraftingAction) || Flag(ConditionFlag.PreparingToCraft));
+        Add(states, "Gathering", Flag(ConditionFlag.Gathering) || Flag(ConditionFlag.ExecutingGatheringAction));
         Add(states, "Dead", Flag(ConditionFlag.Unconscious));
         Add(states, "Occupied", Flag(ConditionFlag.Occupied) || Flag(ConditionFlag.Occupied30) || Flag(ConditionFlag.Occupied33) || Flag(ConditionFlag.Occupied38) || Flag(ConditionFlag.Occupied39));
         Add(states, "BetweenAreas", Flag(ConditionFlag.BetweenAreas) || Flag(ConditionFlag.BetweenAreas51));
