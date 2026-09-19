@@ -25,7 +25,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static IGameConfig GameConfig { get; private set; } = null!;
 
-    public const string AppVersion = "0.0.1.1";
+    public const string AppVersion = "0.0.1.2";
     private const string CommandName = "/andthen";
     private const string CommandAlias = "/atn";
 
@@ -185,6 +185,7 @@ public sealed class Plugin : IDalamudPlugin
                 Notify("/atn — window");
                 Notify("/atn Name — run that rule");
                 Notify("/atn ask — show dialog list");
+                Notify("/atn why Name — print chip results");
                 Notify("/atn apply | now | pause | resume | zone | config");
                 break;
             case "config": ToggleConfigUi(); break;
@@ -212,6 +213,14 @@ public sealed class Plugin : IDalamudPlugin
                 Engine.Tick(true);
                 break;
             case "zone": Notify(Snapshot().Line()); break;
+            case "why":
+            {
+                var name = parts.Length > 1 ? parts[1] : string.Empty;
+                var rule = string.IsNullOrWhiteSpace(name) ? null : FindRule(name);
+                if (rule is null) Notify("Name a rule: /atn why Duty start");
+                else foreach (var line in Engine.Why(rule, Snapshot())) Notify(line);
+                break;
+            }
             case "dry":
             {
                 var name = parts.Length > 1 ? parts[1] : string.Empty;
