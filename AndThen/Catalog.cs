@@ -14,6 +14,7 @@ internal static class Catalog
         "Dead", "Occupied", "BetweenAreas", "Jumping", "Casting", "Fishing",
         "PvP", "Housing", "WeaponDrawn", "InParty", "HasTarget", "Emoting",
         "Performing", "Trade", "Fashion", "RolePlaying", "LoggedIn",
+        "Sitting", "Event", "DeepDungeon",
     ];
 
     public static readonly string[] Jobs =
@@ -26,12 +27,15 @@ internal static class Catalog
     ];
 
     public static readonly string[] Roles = ["Tank", "Healer", "DPS", "Crafter", "Gatherer"];
-    public static readonly string[] Duties = ["any", "none", "solid", "dungeon", "raid", "alliance"];
+    public static readonly string[] Duties = ["any", "none", "solid", "dungeon", "trial", "raid", "alliance", "pvp", "deep", "field"];
     public static readonly string[] Groups = ["Solo", "Light", "Full", "Alliance"];
+    public static readonly string[] Places = ["Town", "Overworld", "Indoor", "Housing", "Inn", "Sanctuary", "PvP", "GoldSaucer", "DeepDungeon", "Field"];
+    public static readonly string[] Targets = ["none", "any", "player", "npc"];
+    public static readonly string[] Times = ["day", "night", "dawn", "dusk"];
     public static readonly string[] Statuses = ["Online", "Away", "Busy", "Roleplaying", "LookingToMeld", "LookingForParty"];
     public static readonly string[] Nearby = ["empty", "few", "crowded"];
-    public static readonly string[] ChipKinds = ["State", "Job", "Role", "Zone", "World", "DC", "Party", "Duty", "Group", "Time", "Weather", "Nearby"];
-    public static readonly string[] ThenKinds = ["Command", "Wait", "Status", "Config"];
+    public static readonly string[] ChipKinds = ["State", "Job", "Role", "Zone", "World", "DC", "Party", "Duty", "Group", "Time", "Weather", "Nearby", "Place", "Target"];
+    public static readonly string[] ThenKinds = ["Command", "Wait", "Status", "Config", "Notify"];
 
     public static IReadOnlyList<string> SystemOptions { get; } = Enum.GetNames<SystemConfigOption>().OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
     public static IReadOnlyList<string> UiOptions { get; } = Enum.GetNames<UiConfigOption>().OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
@@ -51,7 +55,7 @@ internal static class Catalog
     {
         query = (query ?? string.Empty).Trim();
         if (query.Length == 0) return names;
-        return names.Where(n => n.Contains(query, StringComparison.OrdinalIgnoreCase));
+        return names.Where(n => n.Contains(query, StringComparison.OrdinalIgnoreCase) || GroupOf(n).Contains(query, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool Starts(string option, params string[] prefixes) =>

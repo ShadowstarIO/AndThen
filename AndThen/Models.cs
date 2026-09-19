@@ -17,6 +17,8 @@ public enum ChipKind
     Time = 9,
     Weather = 10,
     Nearby = 11,
+    Place = 12,
+    Target = 13,
 }
 
 public enum ThenKind
@@ -25,6 +27,7 @@ public enum ThenKind
     Wait = 1,
     Status = 2,
     Config = 3,
+    Notify = 4,
 }
 
 public enum ApplyMode
@@ -60,6 +63,8 @@ public class RuleChip
         ChipKind.Time => $"Time {Value}",
         ChipKind.Weather => $"Weather {Value}",
         ChipKind.Nearby => $"Nearby {Value}",
+        ChipKind.Place => $"Place {Value}",
+        ChipKind.Target => $"Target {Value}",
         _ => Value,
     };
 }
@@ -78,6 +83,7 @@ public class ThenRow
         ThenKind.Wait => WaitMs <= 0 ? "Wait" : $"Wait {WaitMs}ms",
         ThenKind.Status => $"Status {Value}",
         ThenKind.Config => string.IsNullOrWhiteSpace(Option) ? "Config" : $"{Option} = {Value}",
+        ThenKind.Notify => string.IsNullOrWhiteSpace(Value) ? "Notify" : $"Say {Value}",
         _ => string.IsNullOrWhiteSpace(Value) ? "/command" : Value,
     };
 }
