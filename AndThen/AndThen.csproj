@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.1.0.0</Version>
+    <Author>Xoza</Author>
+    <Name>AndThen</Name>
+    <Punchline>When conditions match, apply settings and run commands.</Punchline>
+    <Description>Folders of rules. AND, OR, and NOT chips. When a rule becomes true it sets game options, online status, and slash commands. Rules do not revert — write another rule for the other state.</Description>
+    <RepoUrl>https://github.com/ShadowstarIO/AndThen</RepoUrl>
+    <PackageProjectUrl>https://github.com/ShadowstarIO/AndThen</PackageProjectUrl>
+    <IconUrl>https://raw.githubusercontent.com/ShadowstarIO/AndThen/main/images/icon.png</IconUrl>
+    <Tags>settings;commands;conditions;hud;fps;graphics</Tags>
+    <InternalName>AndThen</InternalName>
+    <ApplicableVersion>any</ApplicableVersion>
+    <DalamudApiLevel>15</DalamudApiLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="..\images\icon.svg" Link="images\icon.svg" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
