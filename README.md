@@ -1,52 +1,71 @@
 # AndThen
 
-When conditions match, apply settings and run commands.
+*When conditions match, apply settings and run commands. Built on Dalamud.*
 
-AndThen is a Dalamud plugin. Folders on the left, editor on the right. Rules use AND / OR / NOT chips. When a rule becomes true it runs a THEN stack: game settings, online status, and `/commands`. Rules do not revert. Write a second rule for the other state.
+---
 
-`/andthen` or `/atn`.
+> Early development.
+> Version **0.0.1.0**. The window, rule list, chip editor, rising-edge apply, and a first set of conditions and THEN actions are in place. More conditions, graphics keys, and share polish still to land.
 
-Current version: **0.0.1.0**. Patches go `0.0.1.1`, `0.0.1.2`, …
+## What it does
+
+Keep a folder of rules. Each rule is a set of IF / AND / OR / NOT chips plus a THEN stack. When the chips go from false to true, AndThen applies the stack once: game options, online status, and `/commands`. Rules do not revert. Write a second rule for the other state.
+
+Open the window with `/andthen` or `/atn`.
+
+## Features
+
+* **Folders on the left** : rules sit in folders you name. Filter the list. Move a rule up or down to change who wins when two rules fire on the same edge.
+* **Chip editor** : AND chips must all match. OR chips need one match if any are set. NOT chips must stay false.
+* **Rising edge** : the THEN stack runs when a rule becomes true, not every frame it stays true.
+* **THEN stack** : add as many rows as you need. Settings, status, `/command`, and Wait. Want a command twice? Add two command rows. Need a gap? Add Wait. Need a loop? Use a game macro.
+* **No revert** : a rule only applies. Pair it with another rule that matches the other state if you want the previous settings back.
+* **Share** : copy JSON or an `AT1.` code from the rule menu. Paste to import. Imported rules start disabled.
+* **Pause** : `/atn pause` stops evaluation. `/atn resume` starts it again. Optional pause duration in seconds.
+
+## How a rule is evaluated
+
+1. Skip the rule if it is off.
+2. Read the current place, job, duty, party, and condition flags.
+3. AND chips must all match.
+4. If any OR chips exist, at least one of them must match.
+5. NOT chips must not match.
+6. If the last tick was false and this tick is true, run the THEN stack from top to bottom.
+7. If two matching rules set the same option on the same edge, the rule lower in the list wins. Use **Move down** to raise effective priority.
 
 ## Install
 
-Dalamud plugin installer → **Settings → Experimental → Custom Plugin Repositories**, add:
+In-game: `/xlsettings` → **Experimental** → paste into **Custom Plugin Repositories**:
 
 ```
 https://raw.githubusercontent.com/ShadowstarIO/XIV/main/repo.json
 ```
 
-Save, `/xlplugins`, install AndThen.
-
-## How a rule works
-
-1. **IF** chips must all match (AND).
-2. **OR** chips: if any are set, at least one of those must match.
-3. **NOT** chips must not match.
-4. On the rising edge (false → true), the THEN stack runs once, top to bottom.
-
-No built-in loop. Want a command twice? Add two command rows. Need a pause? Add a Wait row. Need a cycle? Use a game macro.
-
-Lower list position wins when two matching rules set the same setting on the same edge. Use Move up / Move down to change order.
+Tick **Enabled**, click **+**, then **Save and Close**. Open `/xlplugins` → **All Plugins**, search for **AndThen**, and install.
 
 ## Commands
 
-| | |
+| Command | Action |
 | --- | --- |
-| `/andthen` `/atn` | Window |
+| `/andthen` | Toggle the main window |
+| `/atn` | Alias for `/andthen` |
 | `/atn apply` | Run matching rules now |
-| `/atn now` | Preview matches, do not run |
-| `/atn pause [seconds]` | Pause rules |
-| `/atn resume` | Resume |
-| `/atn zone` | Print current place and job |
-| `/atn config` | Settings |
+| `/atn now` | Print matching rules without running them |
+| `/atn pause [seconds]` | Pause evaluation |
+| `/atn resume` | Resume evaluation |
+| `/atn zone` | Print the current place and job |
+| `/atn config` | Open settings |
+| `/atn help` | List commands |
 
-## Share
+## Share format
 
-Copy JSON or an `AT1.` share code from the rule menu. Sample rules use generic names only.
+From a rule: **Copy JSON** or **Copy AT1**. Paste either into the import box. Sample rules use generic labels only.
 
-## Icon
+## More from this author
 
-`images/icon.svg` is the source. D17 wants `images/icon.png` at 512×512 (amber chips, teal arrow, teal action list on a dark tile).
+* [StatusShift](https://github.com/ShadowstarIO/StatusShift) — search comment and online status from activity, time, day, and place
+* [LightsOn](https://github.com/XozaShadow/LightsOn) — venue occupancy listings
 
-[MIT](LICENSE)
+## License
+
+MIT. See [LICENSE](LICENSE).
