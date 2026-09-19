@@ -53,6 +53,8 @@ internal static class ChipEval
             ChipKind.Time => TimeOk(value, snap),
             ChipKind.Weather => snap.Weather.Contains(value, StringComparison.OrdinalIgnoreCase),
             ChipKind.Nearby => NearbyOk(value, snap.Nearby),
+            ChipKind.Place => snap.HasPlace(value),
+            ChipKind.Target => TargetOk(value, snap.Target),
             _ => false,
         };
     }
@@ -65,18 +67,31 @@ internal static class ChipEval
             return !snap.States.Contains("InDuty");
         if (value.Equals("solid", StringComparison.OrdinalIgnoreCase))
             return snap.States.Contains("InDuty");
-        if (value.Equals("raid", StringComparison.OrdinalIgnoreCase))
-            return snap.States.Contains("InDuty") && snap.Group is "Full" or "Alliance";
-        if (value.Equals("alliance", StringComparison.OrdinalIgnoreCase))
-            return snap.Group.Equals("Alliance", StringComparison.OrdinalIgnoreCase);
         if (value.Equals("dungeon", StringComparison.OrdinalIgnoreCase) || value.Equals("light", StringComparison.OrdinalIgnoreCase))
-            return snap.States.Contains("InDuty") && snap.Group == "Light";
+            return snap.HasPlace("Dungeon") || (snap.States.Contains("InDuty") && snap.Group == "Light");
+        if (value.Equals("trial", StringComparison.OrdinalIgnoreCase))
+            return snap.HasPlace("Trial");
+        if (value.Equals("raid", StringComparison.OrdinalIgnoreCase))
+            return snap.HasPlace("Raid") || (snap.States.Contains("InDuty") && snap.Group is "Full" or "Alliance");
+        if (value.Equals("alliance", StringComparison.OrdinalIgnoreCase))
+            return snap.HasPlace("Alliance") || snap.Group.Equals("Alliance", StringComparison.OrdinalIgnoreCase);
+        if (value.Equals("pvp", StringComparison.OrdinalIgnoreCase))
+            return snap.HasPlace("PvP") || snap.States.Contains("PvP");
+        if (value.Equals("deep", StringComparison.OrdinalIgnoreCase))
+            return snap.HasPlace("DeepDungeon") || snap.States.Contains("DeepDungeon");
+        if (value.Equals("field", StringComparison.OrdinalIgnoreCase))
+            return snap.HasPlace("Field");
         return snap.States.Contains("InDuty") && snap.TerritoryName.Contains(value, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TimeOk(string value, GameSnapshot snap)
     {
         if (value.Equals(snap.Weekday, StringComparison.OrdinalIgnoreCase)) return true;
+        var key = value.ToLowerInvariant();
+        if (key is "day") return snap.EorzeaHour is >= 6 and < 18;
+        if (key is "night") return snap.EorzeaHour is >= 18 or < 6;
+        if (key is "dawn") return snap.EorzeaHour is >= 5 and < 8;
+        if (key is "dusk") return snap.EorzeaHour is >= 17 and < 20;
         if (value.StartsWith("et", StringComparison.OrdinalIgnoreCase))
             return Compare(value[2..].Trim(), snap.EorzeaHour);
         if (value.StartsWith("lt", StringComparison.OrdinalIgnoreCase) || value.StartsWith("local", StringComparison.OrdinalIgnoreCase))
@@ -94,6 +109,13 @@ internal static class ChipEval
         "crowded" => n > 8,
         _ => Compare(value, n),
     };
+
+    private static bool TargetOk(string value, string target)
+    {
+        if (value.Equals("any", StringComparison.OrdinalIgnoreCase)) return target != "none";
+        if (value.Equals("none", StringComparison.OrdinalIgnoreCase)) return target == "none";
+        return target.Equals(value, StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool Compare(string value, int n)
     {

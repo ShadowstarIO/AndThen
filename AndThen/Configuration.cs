@@ -7,7 +7,7 @@ namespace AndThen;
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 2;
+    public int Version { get; set; } = 3;
     public bool Enabled { get; set; } = true;
     public bool NotifyInChat { get; set; } = true;
     public bool OpenUiOnLoad { get; set; }
@@ -28,15 +28,13 @@ public class Configuration : IPluginConfiguration
             Folder = "Examples",
             Enabled = true,
             Mode = ApplyMode.Off,
-            AndChips = [new() { Kind = ChipKind.State, Value = "InDuty" }],
-            NotChips = [new() { Kind = ChipKind.Job, Value = "MNK" }],
+            AndChips = [new() { Kind = ChipKind.Duty, Value = "solid" }],
             Then =
             [
                 new() { Kind = ThenKind.Config, Section = ConfigSection.System, Option = "Fps", Value = "3" },
                 new() { Kind = ThenKind.Config, Section = ConfigSection.System, Option = "MouseOpeLimit", Value = "on" },
                 new() { Kind = ThenKind.Config, Section = ConfigSection.Ui, Option = "BattleEffectOther", Value = "2" },
                 new() { Kind = ThenKind.Status, Value = "Busy" },
-                new() { Kind = ThenKind.Command, Value = "/autolockon on" },
             ],
         },
         new()
@@ -46,13 +44,31 @@ public class Configuration : IPluginConfiguration
             Folder = "Examples",
             Enabled = true,
             Mode = ApplyMode.Off,
-            NotChips = [new() { Kind = ChipKind.State, Value = "InDuty" }],
+            AndChips = [new() { Kind = ChipKind.Duty, Value = "none" }],
             Then =
             [
                 new() { Kind = ThenKind.Config, Section = ConfigSection.System, Option = "Fps", Value = "0" },
                 new() { Kind = ThenKind.Config, Section = ConfigSection.System, Option = "MouseOpeLimit", Value = "off" },
                 new() { Kind = ThenKind.Config, Section = ConfigSection.Ui, Option = "BattleEffectOther", Value = "0" },
                 new() { Kind = ThenKind.Status, Value = "Online" },
+            ],
+        },
+        new()
+        {
+            Name = "City night",
+            Notes = "Quieter presence after dusk in town",
+            Folder = "Examples",
+            Enabled = false,
+            Mode = ApplyMode.Off,
+            AndChips =
+            [
+                new() { Kind = ChipKind.Place, Value = "Town" },
+                new() { Kind = ChipKind.Time, Value = "night" },
+            ],
+            Then =
+            [
+                new() { Kind = ThenKind.Status, Value = "Roleplaying" },
+                new() { Kind = ThenKind.Notify, Value = "Night in town." },
             ],
         },
     ];

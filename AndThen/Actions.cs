@@ -12,9 +12,17 @@ internal static class Actions
             ThenKind.Command => ChatSender.TrySend(row.Value),
             ThenKind.Status => RunStatus(row.Value),
             ThenKind.Config => RunConfig(row),
+            ThenKind.Notify => RunNotify(row.Value),
             ThenKind.Wait => true,
             _ => false,
         };
+    }
+
+    private static bool RunNotify(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        Plugin.Notify(value.Trim());
+        return true;
     }
 
     private static bool RunStatus(string value)
