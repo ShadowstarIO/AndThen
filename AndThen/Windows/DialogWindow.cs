@@ -37,6 +37,8 @@ public sealed class DialogWindow : Window
             if (ImGui.Button(rule.Name, new Vector2(-1, 0))) pick = rule;
             if (!string.IsNullOrWhiteSpace(rule.Notes))
                 ImGui.TextWrapped(rule.Notes);
+            foreach (var row in rule.Then)
+                ImGui.BulletText(row.Label);
             ImGui.PopID();
         }
         ImGui.Separator();

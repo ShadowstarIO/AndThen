@@ -14,7 +14,7 @@ public sealed class ConfigWindow : Window
         this.plugin = plugin;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(380, 280),
+            MinimumSize = new Vector2(380, 300),
             MaximumSize = new Vector2(640, 720),
         };
     }
@@ -43,8 +43,11 @@ public sealed class ConfigWindow : Window
         }
 
         ImGui.Separator();
-        ImGui.TextWrapped("Off does nothing until /atn Name. Dialog asks once per match set. Auto runs on the rising edge.");
+        ImGui.TextWrapped("Off waits for /atn Name. Dialog asks once per match set. Auto runs on the rising edge. Rules do not revert.");
         ImGui.TextDisabled($"Version {Plugin.AppVersion}");
+        ImGui.Separator();
+        ImGui.TextUnformatted("Now");
+        ImGui.TextWrapped(plugin.Snapshot().Line());
         ImGui.Separator();
         ImGui.TextUnformatted("Last applied");
         if (plugin.Engine.Log.Count == 0) ImGui.TextDisabled("None yet.");
