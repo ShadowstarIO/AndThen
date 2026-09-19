@@ -115,6 +115,19 @@ internal sealed class Engine
 
     public IEnumerable<string> Preview(ThenRule rule) => rule.Then.Select(r => r.Label);
 
+    public IEnumerable<string> Why(ThenRule rule, GameSnapshot snap)
+    {
+        yield return ChipEval.Matches(rule, snap) ? "MATCH" : "no match";
+        foreach (var chip in rule.AndChips)
+            yield return $"IF {(ChipEval.ChipTrue(chip, snap) ? "Y" : "n")}  {chip.Label}";
+        foreach (var chip in rule.OrChips)
+            yield return $"OR {(ChipEval.ChipTrue(chip, snap) ? "Y" : "n")}  {chip.Label}";
+        foreach (var chip in rule.NotChips)
+            yield return $"NOT {(ChipEval.ChipTrue(chip, snap) ? "Y" : "n")}  {chip.Label}";
+        if (rule.AndChips.Count + rule.OrChips.Count + rule.NotChips.Count == 0)
+            yield return "(no chips — /atn Name still runs THEN)";
+    }
+
     private IEnumerable<ThenRule> LiveRules()
     {
         foreach (var rule in cfg.Rules)
