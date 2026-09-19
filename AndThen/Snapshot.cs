@@ -79,11 +79,16 @@ public sealed class GameSnapshot
         if (on) set.Add(name);
     }
 
-    private static string RoleOf(byte role, uint category) =>
-        category is 33 => "Crafter",
-        category is 32 => "Gatherer",
-        role is 1 => "Tank",
-        role is 4 => "Healer",
-        role is 2 or 3 => "DPS",
-        _ => string.Empty;
+    private static string RoleOf(byte role, uint category)
+    {
+        if (category == 33) return "Crafter";
+        if (category == 32) return "Gatherer";
+        return role switch
+        {
+            1 => "Tank",
+            4 => "Healer",
+            2 or 3 => "DPS",
+            _ => string.Empty,
+        };
+    }
 }

@@ -13,10 +13,13 @@
     <InternalName>AndThen</InternalName>
     <ApplicableVersion>any</ApplicableVersion>
     <DalamudApiLevel>15</DalamudApiLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup Condition="Exists('..\images\icon.png')">
     <Content Include="..\images\icon.png" Link="images\icon.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\images\icon.png" Link="icon.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('..\images\icon.svg')">
     <Content Include="..\images\icon.svg" Link="images\icon.svg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

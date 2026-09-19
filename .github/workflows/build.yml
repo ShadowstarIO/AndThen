@@ -88,6 +88,19 @@ jobs:
             artifacts/AndThen.zip
           if-no-files-found: error
 
+      - name: Publish testing prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: AndThen ${{ steps.ver.outputs.version }} testing
+          body: |
+            Testing build. Not a live listing.
+
+            Open `/andthen` or `/atn` after install.
+          prerelease: true
+          files: artifacts/AndThen.zip
+
       - name: Sync plugin repo (testing always; live only on full releases)
         if: github.event_name == 'release'
         shell: pwsh
