@@ -7,12 +7,15 @@ namespace AndThen;
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
     public bool Enabled { get; set; } = true;
     public bool NotifyInChat { get; set; } = true;
     public bool OpenUiOnLoad { get; set; }
-    public int PollMs { get; set; } = 250;
+    public bool QuietInCutscene { get; set; } = true;
+    public float PollSec { get; set; } = 0.5f;
     public List<ThenRule> Rules { get; set; } = DefaultRules();
+    public List<string> Folders { get; set; } = ["Examples"];
+    public List<string> MutedFolders { get; set; } = [];
 
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 
@@ -23,18 +26,15 @@ public class Configuration : IPluginConfiguration
             Name = "Duty start",
             Notes = "Lower load when an instance starts",
             Folder = "Examples",
-            Enabled = false,
-            Priority = 100,
+            Enabled = true,
+            Mode = ApplyMode.Off,
             AndChips = [new() { Kind = ChipKind.State, Value = "InDuty" }],
             NotChips = [new() { Kind = ChipKind.Job, Value = "MNK" }],
             Then =
             [
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.Fps, Value = "30" },
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.MouseLock, Value = "on" },
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.MusicOn, Value = "off" },
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.DisplayHead, Value = "on" },
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.DisplayWeapon, Value = "on" },
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.HudLayout, Value = "2" },
+                new() { Kind = ThenKind.Config, Section = ConfigSection.System, Option = "Fps", Value = "3" },
+                new() { Kind = ThenKind.Config, Section = ConfigSection.System, Option = "MouseOpeLimit", Value = "on" },
+                new() { Kind = ThenKind.Config, Section = ConfigSection.Ui, Option = "BattleEffectOther", Value = "2" },
                 new() { Kind = ThenKind.Status, Value = "Busy" },
                 new() { Kind = ThenKind.Command, Value = "/autolockon on" },
             ],
@@ -44,14 +44,14 @@ public class Configuration : IPluginConfiguration
             Name = "Leave duty",
             Notes = "Restore overworld settings",
             Folder = "Examples",
-            Enabled = false,
-            Priority = 90,
+            Enabled = true,
+            Mode = ApplyMode.Off,
             NotChips = [new() { Kind = ChipKind.State, Value = "InDuty" }],
             Then =
             [
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.Fps, Value = "none" },
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.MouseLock, Value = "off" },
-                new() { Kind = ThenKind.Setting, Setting = SettingKey.MusicOn, Value = "on" },
+                new() { Kind = ThenKind.Config, Section = ConfigSection.System, Option = "Fps", Value = "0" },
+                new() { Kind = ThenKind.Config, Section = ConfigSection.System, Option = "MouseOpeLimit", Value = "off" },
+                new() { Kind = ThenKind.Config, Section = ConfigSection.Ui, Option = "BattleEffectOther", Value = "0" },
                 new() { Kind = ThenKind.Status, Value = "Online" },
             ],
         },

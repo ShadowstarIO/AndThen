@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AndThen;
 
@@ -7,20 +8,31 @@ internal sealed class Engine
 {
     private readonly Configuration cfg;
     private readonly HashSet<string> lastTrue = [];
+    private readonly HashSet<string> asked = [];
     private readonly Queue<Pending> pending = new();
+    private readonly Dictionary<string, DateTime> justApplied = [];
     private DateTime nextDue = DateTime.MinValue;
 
     public GameSnapshot LastSnap { get; private set; } = new();
     public List<ThenRule> LastMatches { get; } = [];
+    public List<ThenRule> DialogQueue { get; } = [];
+    public List<AppliedLine> Log { get; } = [];
+    public bool DialogOpenNeeded { get; set; }
 
     public Engine(Configuration cfg) => this.cfg = cfg;
 
     public void Reset()
     {
         lastTrue.Clear();
+        asked.Clear();
         pending.Clear();
         LastMatches.Clear();
+        DialogQueue.Clear();
+        DialogOpenNeeded = false;
     }
+
+    public bool JustApplied(string id) =>
+        justApplied.TryGetValue(id, out var at) && DateTime.Now - at < TimeSpan.FromSeconds(2);
 
     public void Tick(bool force)
     {
@@ -28,42 +40,98 @@ internal sealed class Engine
         if (!Plugin.CharacterReady) return;
 
         DrainPending();
+        var interval = TimeSpan.FromSeconds(Math.Clamp(cfg.PollSec, 0.25, 5));
         if (!force && DateTime.Now < nextDue) return;
-        nextDue = DateTime.Now.AddMilliseconds(Math.Max(100, cfg.PollMs));
+        nextDue = DateTime.Now + interval;
 
         var snap = GameSnapshot.Capture();
         LastSnap = snap;
         LastMatches.Clear();
 
+        var quietAuto = cfg.QuietInCutscene && snap.States.Contains("Cutscene");
         var seen = new HashSet<string>();
-        foreach (var rule in Sorted())
+        var dialogNow = new List<ThenRule>();
+
+        foreach (var rule in LiveRules())
         {
-            if (!rule.Enabled && !force) continue;
             var match = ChipEval.Matches(rule, snap);
             if (!match) continue;
             LastMatches.Add(rule);
             seen.Add(rule.Id);
             var rising = force || !lastTrue.Contains(rule.Id);
-            if (rising) Enqueue(rule);
+            if (!rising) continue;
+
+            if (force)
+            {
+                Enqueue(rule, "apply");
+                continue;
+            }
+
+            if (rule.Mode == ApplyMode.Auto && !quietAuto)
+                Enqueue(rule, "auto");
+            else if (rule.Mode == ApplyMode.Dialog)
+                dialogNow.Add(rule);
         }
 
         lastTrue.Clear();
         foreach (var id in seen) lastTrue.Add(id);
+
+        var dialogIds = new HashSet<string>(dialogNow.Select(r => r.Id));
+        if (dialogNow.Count > 0 && !dialogIds.SetEquals(asked))
+        {
+            DialogQueue.Clear();
+            DialogQueue.AddRange(dialogNow);
+            asked.Clear();
+            foreach (var id in dialogIds) asked.Add(id);
+            DialogOpenNeeded = true;
+        }
+        if (dialogNow.Count == 0)
+        {
+            asked.Clear();
+            DialogQueue.Clear();
+        }
     }
 
     public void Test(ThenRule rule)
     {
         if (!Plugin.CharacterReady) return;
         LastSnap = GameSnapshot.Capture();
-        Enqueue(rule);
+        Enqueue(rule, "command");
         DrainPending();
     }
 
-    private void Enqueue(ThenRule rule)
+    public void AcceptDialog(ThenRule rule)
+    {
+        Enqueue(rule, "dialog");
+        DialogQueue.RemoveAll(r => r.Id == rule.Id);
+        DrainPending();
+    }
+
+    public void DismissDialog()
+    {
+        DialogQueue.Clear();
+        DialogOpenNeeded = false;
+    }
+
+    public IEnumerable<string> Preview(ThenRule rule) => rule.Then.Select(r => r.Label);
+
+    private IEnumerable<ThenRule> LiveRules()
+    {
+        foreach (var rule in cfg.Rules)
+        {
+            if (!rule.Enabled) continue;
+            if (cfg.MutedFolders.Contains(rule.FolderKey)) continue;
+            yield return rule;
+        }
+    }
+
+    private void Enqueue(ThenRule rule, string how)
     {
         if (rule.Then.Count == 0) return;
-        pending.Enqueue(new Pending { RuleName = rule.Name, Rows = [.. rule.Then], Index = 0, Due = DateTime.Now });
-        Plugin.Notify($"[{rule.Name}] running {rule.Then.Count} action(s)");
+        pending.Enqueue(new Pending { RuleName = rule.Name, RuleId = rule.Id, Rows = [.. rule.Then], Index = 0, Due = DateTime.Now });
+        justApplied[rule.Id] = DateTime.Now;
+        AddLog(rule.Name, how);
+        Plugin.Notify($"[{rule.Name}] {how}");
     }
 
     private void DrainPending()
@@ -89,14 +157,18 @@ internal sealed class Engine
             }
 
             Actions.Run(row);
+            if (row.Kind == ThenKind.Config)
+            {
+                item.Due = DateTime.Now.AddMilliseconds(80);
+                return;
+            }
         }
     }
 
-    private List<ThenRule> Sorted()
+    private void AddLog(string name, string how)
     {
-        var copy = new List<ThenRule>(cfg.Rules);
-        copy.Sort((a, b) => a.Priority.CompareTo(b.Priority));
-        return copy;
+        Log.Insert(0, new AppliedLine { At = DateTime.Now, Name = name, Detail = how });
+        if (Log.Count > 10) Log.RemoveAt(Log.Count - 1);
     }
 
     private static int ParseWait(string value)
@@ -108,6 +180,7 @@ internal sealed class Engine
     private sealed class Pending
     {
         public string RuleName { get; init; } = string.Empty;
+        public string RuleId { get; init; } = string.Empty;
         public List<ThenRow> Rows { get; init; } = [];
         public int Index { get; set; }
         public DateTime Due { get; set; }

@@ -11,7 +11,7 @@ internal static class Actions
         {
             ThenKind.Command => ChatSender.TrySend(row.Value),
             ThenKind.Status => RunStatus(row.Value),
-            ThenKind.Setting => RunSetting(row.Setting, row.Value),
+            ThenKind.Config => RunConfig(row),
             ThenKind.Wait => true,
             _ => false,
         };
@@ -23,55 +23,65 @@ internal static class Actions
         return cmd is not null && ChatSender.TrySend(cmd);
     }
 
-    private static bool RunSetting(SettingKey key, string raw)
+    private static bool RunConfig(ThenRow row)
     {
-        var value = (raw ?? string.Empty).Trim();
+        var option = (row.Option ?? string.Empty).Trim();
+        var raw = (row.Value ?? string.Empty).Trim();
+        if (option.Length == 0) return false;
         try
         {
-            switch (key)
+            if (row.Section == ConfigSection.Ui)
             {
-                case SettingKey.Fps:
-                    Plugin.GameConfig.Set(SystemConfigOption.Fps, FpsValue(value));
-                    return true;
-                case SettingKey.MouseLock:
-                    Plugin.GameConfig.Set(SystemConfigOption.MouseOpeLimit, On(value) ? 1u : 0u);
-                    return true;
-                case SettingKey.MusicOn:
-                    return ChatSender.TrySend(On(value) ? "/bgm on" : "/bgm off");
-                case SettingKey.SoundOn:
-                    return ChatSender.TrySend(On(value) ? "/sound on" : "/sound off");
-                case SettingKey.DisplayHead:
-                    return ChatSender.TrySend(On(value) ? "/displayhead on" : "/displayhead off");
-                case SettingKey.DisplayWeapon:
-                    return ChatSender.TrySend(On(value) ? "/displayarms on" : "/displayarms off");
-                case SettingKey.HudLayout:
-                    if (!int.TryParse(value, out var hud)) hud = 1;
-                    hud = Math.Clamp(hud, 1, 4);
-                    return ChatSender.TrySend($"/hudlayout {hud}");
-                default:
-                    return false;
+                if (!Enum.TryParse<UiConfigOption>(option, true, out var ui)) return false;
+                return SetUi(ui, raw);
             }
+            if (!Enum.TryParse<SystemConfigOption>(option, true, out var sys)) return false;
+            return SetSys(sys, raw);
         }
         catch (Exception ex)
         {
-            Plugin.Log.Warning(ex, "Setting failed: {Key}={Value}", key, value);
+            Plugin.Log.Warning(ex, "Config failed: {Option}={Value}", option, raw);
             return false;
         }
     }
 
-    private static uint FpsValue(string value) => value.ToLowerInvariant() switch
+    private static bool SetSys(SystemConfigOption option, string raw)
     {
-        "none" or "off" or "0" or "max" or "unlimited" => 0u,
-        "display" or "monitor" or "1" => 1u,
-        "60" or "2" => 2u,
-        "30" or "3" => 3u,
-        "15" or "4" => 4u,
-        _ => uint.TryParse(value, out var n) ? n : 0u,
-    };
+        if (IsOnOff(raw, out var on)) { Plugin.GameConfig.Set(option, on); return true; }
+        if (uint.TryParse(raw, out var n)) { Plugin.GameConfig.Set(option, n); return true; }
+        if (float.TryParse(raw, out var f)) { Plugin.GameConfig.Set(option, f); return true; }
+        Plugin.GameConfig.Set(option, MapNamed(raw));
+        return true;
+    }
 
-    private static bool On(string value) =>
-        value.Equals("on", StringComparison.OrdinalIgnoreCase)
-        || value.Equals("true", StringComparison.OrdinalIgnoreCase)
-        || value.Equals("1", StringComparison.OrdinalIgnoreCase)
-        || value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+    private static bool SetUi(UiConfigOption option, string raw)
+    {
+        if (IsOnOff(raw, out var on)) { Plugin.GameConfig.Set(option, on); return true; }
+        if (uint.TryParse(raw, out var n)) { Plugin.GameConfig.Set(option, n); return true; }
+        if (float.TryParse(raw, out var f)) { Plugin.GameConfig.Set(option, f); return true; }
+        Plugin.GameConfig.Set(option, MapNamed(raw));
+        return true;
+    }
+
+    private static bool IsOnOff(string raw, out bool on)
+    {
+        on = raw.Equals("on", StringComparison.OrdinalIgnoreCase)
+            || raw.Equals("true", StringComparison.OrdinalIgnoreCase)
+            || raw.Equals("yes", StringComparison.OrdinalIgnoreCase)
+            || raw == "1";
+        return on
+            || raw.Equals("off", StringComparison.OrdinalIgnoreCase)
+            || raw.Equals("false", StringComparison.OrdinalIgnoreCase)
+            || raw.Equals("no", StringComparison.OrdinalIgnoreCase)
+            || raw == "0";
+    }
+
+    private static uint MapNamed(string raw) => raw.ToLowerInvariant() switch
+    {
+        "none" or "off" or "max" or "unlimited" or "all" => 0u,
+        "limited" or "display" or "monitor" => 1u,
+        "never" => 3u,
+        "always" => 0u,
+        _ => 0u,
+    };
 }
