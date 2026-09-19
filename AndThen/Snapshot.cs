@@ -13,6 +13,8 @@ public sealed class GameSnapshot
     public bool LoggedIn { get; init; }
     public uint TerritoryId { get; init; }
     public string TerritoryName { get; init; } = string.Empty;
+    public uint IntendedUse { get; init; }
+    public string Place { get; init; } = string.Empty;
     public string WorldName { get; init; } = string.Empty;
     public string DataCenterName { get; init; } = string.Empty;
     public uint JobId { get; init; }
@@ -21,11 +23,13 @@ public sealed class GameSnapshot
     public int PartySize { get; init; }
     public string Group { get; init; } = "Solo";
     public int Nearby { get; init; }
+    public string Target { get; init; } = "none";
     public int LocalHour { get; init; }
     public int EorzeaHour { get; init; }
     public string Weekday { get; init; } = string.Empty;
     public string Weather { get; init; } = string.Empty;
     public HashSet<string> States { get; init; } = [];
+    public HashSet<string> Places { get; init; } = [];
 
     public static GameSnapshot Capture()
     {
@@ -38,7 +42,7 @@ public sealed class GameSnapshot
         var territory = Plugin.DataManager.GetExcelSheet<TerritoryType>().GetRowOrDefault(territoryId);
         var party = Plugin.PartyList.Length;
         var intended = territory?.TerritoryIntendedUse.RowId ?? 0;
-        var allianceZone = intended is 41 or 48 or 61;
+        var allianceZone = intended is 8 or 41 or 48 or 61;
         var group = allianceZone || party >= 24 ? "Alliance"
             : party >= 5 ? "Full"
             : party >= 2 ? "Light"
@@ -58,6 +62,7 @@ public sealed class GameSnapshot
         var now = DateTime.Now;
         var unix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var eorzeaHour = (int)((unix * 3600.0 / 175.0 / 3600.0) % 24);
+        var places = PlacesOf(intended);
 
         var states = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         Add(states, "LoggedIn", logged);
@@ -79,9 +84,9 @@ public sealed class GameSnapshot
         Add(states, "Jumping", Flag(ConditionFlag.Jumping) || Flag(ConditionFlag.Jumping61));
         Add(states, "Casting", Flag(ConditionFlag.Casting) || Flag(ConditionFlag.Casting87));
         Add(states, "Fishing", Flag(ConditionFlag.Fishing));
-        Add(states, "PvP", Flag(ConditionFlag.PvPDisplayActive));
-        Add(states, "Housing", Flag(ConditionFlag.UsingHousingFunctions));
-        Add(states, "WeaponDrawn", player?.StatusFlags.HasFlag(Dalamud.Game.ClientState.Objects.Enums.StatusFlags.WeaponOut) == true);
+        Add(states, "PvP", Flag(ConditionFlag.PvPDisplayActive) || places.Contains("PvP"));
+        Add(states, "Housing", Flag(ConditionFlag.UsingHousingFunctions) || places.Contains("Housing"));
+        Add(states, "WeaponDrawn", player?.StatusFlags.HasFlag(StatusFlags.WeaponOut) == true);
         Add(states, "InParty", party > 0);
         Add(states, "HasTarget", Plugin.TargetManager.Target is not null);
         Add(states, "Emoting", Flag(ConditionFlag.Emoting));
@@ -89,6 +94,9 @@ public sealed class GameSnapshot
         Add(states, "Trade", Flag(ConditionFlag.TradeOpen));
         Add(states, "Fashion", Flag(ConditionFlag.UsingFashionAccessory));
         Add(states, "RolePlaying", Flag(ConditionFlag.RolePlaying));
+        Add(states, "Sitting", Flag(ConditionFlag.InThatPosition));
+        Add(states, "Event", Flag(ConditionFlag.OccupiedInEvent) || Flag(ConditionFlag.OccupiedInQuestEvent) || Flag(ConditionFlag.OccupiedSummoningBell));
+        Add(states, "DeepDungeon", Flag(ConditionFlag.InDeepDungeon) || places.Contains("DeepDungeon"));
 
         return new GameSnapshot
         {
@@ -96,6 +104,8 @@ public sealed class GameSnapshot
             LoggedIn = logged,
             TerritoryId = territoryId,
             TerritoryName = territory?.PlaceName.ValueNullable?.Name.ToString() ?? string.Empty,
+            IntendedUse = intended,
+            Place = PrimaryPlace(places),
             WorldName = world?.Name.ToString() ?? string.Empty,
             DataCenterName = dc?.Name.ToString() ?? string.Empty,
             JobId = job?.RowId ?? 0,
@@ -104,18 +114,22 @@ public sealed class GameSnapshot
             PartySize = party,
             Group = group,
             Nearby = nearby,
+            Target = TargetOf(),
             LocalHour = now.Hour,
             EorzeaHour = eorzeaHour,
             Weekday = now.DayOfWeek.ToString(),
             Weather = ReadWeather(),
             States = states,
+            Places = places,
         };
     }
 
     public string Line() =>
         LoggedIn
-            ? $"{JobAbbr} · {Group} · {WorldName} · {TerritoryName} · ET {EorzeaHour:00} · {Weather}"
+            ? $"{JobAbbr} · {Group} · {Place} · {WorldName} · {TerritoryName} · ET {EorzeaHour:00} · {Weather} · tgt {Target}"
             : "Not logged in";
+
+    public bool HasPlace(string value) => Places.Contains(value);
 
     private static bool DutySolid() =>
         (Flag(ConditionFlag.BoundByDuty) || Flag(ConditionFlag.BoundByDuty56) || Flag(ConditionFlag.BoundByDuty95))
@@ -141,6 +155,83 @@ public sealed class GameSnapshot
             2 or 3 => "DPS",
             _ => string.Empty,
         };
+    }
+
+    private static string TargetOf()
+    {
+        var t = Plugin.TargetManager.Target;
+        if (t is null) return "none";
+        return t.ObjectKind switch
+        {
+            ObjectKind.Pc => "player",
+            ObjectKind.BattleNpc or ObjectKind.EventNpc or ObjectKind.Companion or ObjectKind.Retainer => "npc",
+            _ => "any",
+        };
+    }
+
+    internal static HashSet<string> PlacesOf(uint use)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        switch (use)
+        {
+            case 0:
+                set.Add("Town");
+                set.Add("Sanctuary");
+                break;
+            case 1:
+                set.Add("Overworld");
+                break;
+            case 2:
+                set.Add("Inn");
+                set.Add("Indoor");
+                set.Add("Sanctuary");
+                break;
+            case 3 or 4 or 7 or 57 or 58:
+                set.Add("Dungeon");
+                break;
+            case 10:
+                set.Add("Trial");
+                break;
+            case 8:
+                set.Add("Alliance");
+                break;
+            case 16 or 17 or 36:
+                set.Add("Raid");
+                break;
+            case 13:
+                set.Add("Housing");
+                set.Add("Sanctuary");
+                break;
+            case 14:
+                set.Add("Housing");
+                set.Add("Indoor");
+                set.Add("Sanctuary");
+                break;
+            case 18 or 28 or 37:
+                set.Add("PvP");
+                break;
+            case 23:
+                set.Add("GoldSaucer");
+                break;
+            case 31:
+                set.Add("DeepDungeon");
+                break;
+            case 41 or 47 or 48 or 60 or 61:
+                set.Add("Field");
+                break;
+            case 49:
+                set.Add("Sanctuary");
+                break;
+        }
+
+        return set;
+    }
+
+    private static string PrimaryPlace(HashSet<string> places)
+    {
+        foreach (var key in new[] { "PvP", "DeepDungeon", "Field", "Housing", "Inn", "Town", "GoldSaucer", "Indoor", "Overworld", "Sanctuary" })
+            if (places.Contains(key)) return key;
+        return "Overworld";
     }
 
     private static string ReadWeather()
