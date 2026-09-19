@@ -5,33 +5,37 @@
 ---
 
 > Early development.
-> Version **0.0.1.0**. The window, rule list, chip editor, rising-edge apply, and a first set of conditions and THEN actions are in place. More conditions, graphics keys, and share polish still to land.
+> Version **0.0.1.1** testing. Folders, Off / Dialog / Auto, searchable config actions, and a first full chip set are in place.
 
 ## What it does
 
-Keep a folder of rules. Each rule is a set of IF / AND / OR / NOT chips plus a THEN stack. When the chips go from false to true, AndThen applies the stack once: game options, online status, and `/commands`. Rules do not revert. Write a second rule for the other state.
+Keep rules in folders. Each rule has a Name, a Note, IF chips, and a THEN stack. Mode is Off, Dialog, or Auto.
 
-Open the window with `/andthen` or `/atn`.
+- **Off** — does nothing until you run `/atn Name` or Test.
+- **Dialog** — when the rule becomes true, a popup lists matching Dialog rules. Click one to apply. Same match set does not ask again. `/atn ask` brings the list back.
+- **Auto** — runs the THEN stack once when the rule becomes true. Does not run again until it goes false and true again.
+
+Rules do not revert. Write a second rule for the other state.
 
 ## Features
 
-* **Folders on the left** : rules sit in folders you name. Filter the list. Move a rule up or down to change who wins when two rules fire on the same edge.
-* **Chip editor** : AND chips must all match. OR chips need one match if any are set. NOT chips must stay false.
-* **Rising edge** : the THEN stack runs when a rule becomes true, not every frame it stays true.
-* **THEN stack** : add as many rows as you need. Settings, status, `/command`, and Wait. Want a command twice? Add two command rows. Need a gap? Add Wait. Need a loop? Use a game macro.
-* **No revert** : a rule only applies. Pair it with another rule that matches the other state if you want the previous settings back.
-* **Share** : copy JSON or an `AT1.` code from the rule menu. Paste to import. Imported rules start disabled.
-* **Pause** : `/atn pause` stops evaluation. `/atn resume` starts it again. Optional pause duration in seconds.
+* **Folders** : expandable groups. Drag a rule onto a folder. Mute a folder to silence it.
+* **Chips wrap** : IF / OR / NOT and THEN rows wrap instead of running off the window.
+* **Conditions** : state, job, role, zone, world, DC, party size, duty, group size, time, weather, nearby count.
+* **THEN** : `/command`, Wait, online status, and any System or UI GameConfig option behind search.
+* **Pacing** : check interval is seconds. Config writes are spaced so a long stack does not hitch.
+* **Rising edge only** : a rule that stays true does not apply again.
+* **Share** : JSON or `AT1.` from the rule menu. Imports start Off.
 
 ## How a rule is evaluated
 
-1. Skip the rule if it is off.
-2. Read the current place, job, duty, party, and condition flags.
-3. AND chips must all match.
-4. If any OR chips exist, at least one of them must match.
-5. NOT chips must not match.
-6. If the last tick was false and this tick is true, run the THEN stack from top to bottom.
-7. If two matching rules set the same option on the same edge, the rule lower in the list wins. Use **Move down** to raise effective priority.
+1. Skip if the rule or its folder is muted / off.
+2. AND chips must all match.
+3. If any OR chips exist, one of them must match.
+4. NOT chips must not match.
+5. False → true is the only Auto / Dialog trigger.
+6. `/atn Name` always runs that rule, chips or not.
+7. Two Autos on the same edge: list order, last write wins.
 
 ## Install
 
@@ -47,24 +51,26 @@ Tick **Enabled**, click **+**, then **Save and Close**. Open `/xlplugins` → **
 
 | Command | Action |
 | --- | --- |
-| `/andthen` | Toggle the main window |
-| `/atn` | Alias for `/andthen` |
+| `/andthen` `/atn` | Window |
+| `/atn Name` | Run that rule now |
+| `/atn ask` | Open the Dialog list |
 | `/atn apply` | Run matching rules now |
-| `/atn now` | Print matching rules without running them |
-| `/atn pause [seconds]` | Pause evaluation |
-| `/atn resume` | Resume evaluation |
-| `/atn zone` | Print the current place and job |
-| `/atn config` | Open settings |
+| `/atn now` | Print matches |
+| `/atn dry Name` | Print that rule's THEN stack |
+| `/atn pause [seconds]` | Pause |
+| `/atn resume` | Resume |
+| `/atn zone` | Print place, job, time, weather |
+| `/atn config` | Settings |
 | `/atn help` | List commands |
 
 ## Share format
 
-From a rule: **Copy JSON** or **Copy AT1**. Paste either into the import box. Sample rules use generic labels only.
+Copy JSON or an `AT1.` code from the rule menu. Sample rules use generic labels only.
 
 ## More from this author
 
-* [StatusShift](https://github.com/ShadowstarIO/StatusShift) — search comment and online status from activity, time, day, and place
-* [LightsOn](https://github.com/XozaShadow/LightsOn) — venue occupancy listings
+* [StatusShift](https://github.com/ShadowstarIO/StatusShift)
+* [LightsOn](https://github.com/XozaShadow/LightsOn)
 
 ## License
 
