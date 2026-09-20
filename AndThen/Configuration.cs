@@ -7,7 +7,7 @@ namespace AndThen;
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 5;
+    public int Version { get; set; } = 6;
     public bool Enabled { get; set; } = true;
     public bool NotifyInChat { get; set; } = true;
     public bool OpenUiOnLoad { get; set; }
@@ -25,7 +25,6 @@ public class Configuration : IPluginConfiguration
     public float DefaultDelaySec { get; set; }
     public List<ThenRule> Rules { get; set; } = [];
     public List<string> Folders { get; set; } = [];
-    public List<string> MutedFolders { get; set; } = [];
 
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 }

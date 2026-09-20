@@ -20,6 +20,10 @@ public enum ChipKind
     Place = 12,
     Target = 13,
     OnlineStatus = 14,
+    Account = 15,
+    Housing = 16,
+    Mount = 17,
+    Level = 18,
 }
 
 public enum ThenKind
@@ -29,6 +33,8 @@ public enum ThenKind
     Status = 2,
     Config = 3,
     Notify = 4,
+    Logout = 5,
+    Exit = 6,
 }
 
 public enum ApplyMode
@@ -67,6 +73,10 @@ public class RuleChip
         ChipKind.Place => $"Place {Value}",
         ChipKind.Target => $"Target {Value}",
         ChipKind.OnlineStatus => $"Status {Value}",
+        ChipKind.Account => $"Account {Value}",
+        ChipKind.Housing => $"Housing {Value}",
+        ChipKind.Mount => $"Mount {Value}",
+        ChipKind.Level => $"Level {Value}",
         _ => Value,
     };
 }
@@ -82,10 +92,12 @@ public class ThenRow
 
     public string Label => Kind switch
     {
-        ThenKind.Wait => WaitMs <= 0 ? "Wait" : $"Wait {WaitMs}ms",
-        ThenKind.Status => $"Status {Value}",
-        ThenKind.Config => string.IsNullOrWhiteSpace(Option) ? "Config" : $"{Option} = {Value}",
-        ThenKind.Notify => string.IsNullOrWhiteSpace(Value) ? "Notify" : $"Say {Value}",
+        ThenKind.Wait => WaitMs <= 0 ? "Wait" : $"Wait {WaitMs} ms",
+        ThenKind.Status => $"Online Status {Value}",
+        ThenKind.Config => string.IsNullOrWhiteSpace(Option) ? "Game Setting" : $"{Option} = {Value}",
+        ThenKind.Notify => string.IsNullOrWhiteSpace(Value) ? "Chat Notice" : $"Say {Value}",
+        ThenKind.Logout => "Log Out",
+        ThenKind.Exit => "Close Game",
         _ => string.IsNullOrWhiteSpace(Value) ? "/command" : Value,
     };
 }
@@ -94,7 +106,7 @@ public class ThenRow
 public class ThenRule
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
-    public string Name { get; set; } = "New rule";
+    public string Name { get; set; } = "New Rule";
     public string Notes { get; set; } = string.Empty;
     public string Folder { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
