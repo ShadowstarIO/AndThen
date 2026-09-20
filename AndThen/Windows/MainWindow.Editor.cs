@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 
 namespace AndThen.Windows;
 
@@ -10,37 +11,51 @@ public sealed partial class MainWindow
 {
     private void DrawEditor(Configuration cfg, ThenRule rule)
     {
+        if (IconButton(FontAwesomeIcon.Play, "tthen", "Test THEN now")) plugin.TestRule(rule);
+        ImGui.SameLine();
+        if (IconButton(FontAwesomeIcon.Clone, "tdup", "Duplicate")) plugin.DuplicateRule(rule);
+        ImGui.SameLine();
+        if (IconButton(FontAwesomeIcon.Share, "tat1", "Copy AT1 share code")) { ImGui.SetClipboardText(Share.Encode(rule)); importMsg = "Copied share code."; }
+        ImGui.SameLine();
+        if (IconButton(FontAwesomeIcon.Copy, "tjson", "Copy JSON")) { ImGui.SetClipboardText(Share.ToJson(rule)); importMsg = "Copied JSON."; }
+        ImGui.SameLine();
+        if (IconButton(FontAwesomeIcon.Question, "twhy", "Why — print chip results")) foreach (var line in plugin.Engine.Why(rule, plugin.Snapshot())) Plugin.Notify(line);
+        ImGui.SameLine();
+        if (IconButton(FontAwesomeIcon.Paste, "tpaste", "Paste rule(s) from clipboard"))
+            importMsg = plugin.TryImport(ImGui.GetClipboardText() ?? string.Empty, out var err) ? "Imported." : err;
+        ImGui.TextDisabled($"/atn {rule.CommandToken} always runs this rule. Teal chip = true right now.");
+
+        var on = rule.Enabled;
+        if (ImGui.Checkbox("Enabled", ref on)) { rule.Enabled = on; cfg.Save(); }
+        ImGui.SameLine();
         var name = rule.Name;
-        ImGui.SetNextItemWidth(220);
-        if (ImGui.InputText("Name", ref name, 64) && name != rule.Name) { rule.Name = name; cfg.Save(); }
+        ImGui.SetNextItemWidth(180);
+        if (ImGui.InputText("##name", ref name, 64) && name != rule.Name) { rule.Name = name; cfg.Save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Name");
         ImGui.SameLine();
         var notes = rule.Notes;
-        ImGui.SetNextItemWidth(-1);
+        ImGui.SetNextItemWidth(220);
         if (ImGui.InputTextWithHint("##note", "Note — also the Dialog text", ref notes, 160) && notes != rule.Notes) { rule.Notes = notes; cfg.Save(); }
-
+        ImGui.SameLine();
         var mode = (int)rule.Mode;
-        if (ImGui.Combo("When this matches", ref mode, "Off — only /atn Name or Test\0Dialog — ask once\0Auto — run once on rising edge\0"))
+        ImGui.SetNextItemWidth(90);
+        if (ImGui.Combo("##mode", ref mode, "Off\0Dialog\0Auto\0"))
         {
             rule.Mode = (ApplyMode)mode;
             cfg.Save();
         }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Off / Dialog / Auto");
         ImGui.SameLine();
-        var on = rule.Enabled;
-        if (ImGui.Checkbox("Enabled", ref on)) { rule.Enabled = on; cfg.Save(); }
-
-        if (ImGui.Button("Test THEN")) plugin.TestRule(rule);
+        var wait = rule.DelaySec;
+        ImGui.SetNextItemWidth(60);
+        if (ImGui.InputFloat("##wait", ref wait, 0, 0, "%.1f"))
+        {
+            rule.DelaySec = Math.Clamp(wait, 0, 120);
+            cfg.Save();
+        }
         ImGui.SameLine();
-        if (ImGui.Button("Why")) foreach (var line in plugin.Engine.Why(rule, plugin.Snapshot())) Plugin.Notify(line);
-        ImGui.SameLine();
-        if (ImGui.Button("Duplicate")) plugin.DuplicateRule(rule);
-        ImGui.SameLine();
-        if (ImGui.Button("Copy JSON")) { ImGui.SetClipboardText(Share.ToJson(rule)); importMsg = "Copied JSON."; }
-        ImGui.SameLine();
-        if (ImGui.Button("Copy AT1")) { ImGui.SetClipboardText(Share.Encode(rule)); importMsg = "Copied share code."; }
-        ImGui.SameLine();
-        if (ImGui.Button("Paste"))
-            importMsg = plugin.TryImport(ImGui.GetClipboardText() ?? string.Empty, out var err) ? "Imported." : err;
-        ImGui.TextDisabled($"/atn {rule.CommandToken} always runs this rule. Teal chip = true right now.");
+        ImGui.TextDisabled("wait s");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Seconds the condition must stay true before Auto or Dialog fires. 0 = immediately.");
 
         ImGui.Separator();
         ImGui.TextUnformatted("1. Pick a condition");
@@ -68,12 +83,41 @@ public sealed partial class MainWindow
         DrawThenList(cfg, rule);
     }
 
+    private void ClearChipDraft()
+    {
+        chipValue = string.Empty;
+        partyCmp = ">=";
+        partyN = 4;
+    }
+
+    private void ClearThenDraft()
+    {
+        thenValue = string.Empty;
+        optionQuery = string.Empty;
+        pickedOption = string.Empty;
+        optionPick = 0;
+        waitMs = 250;
+        configSection = 0;
+        configGroup = "Graphics";
+    }
+
     private void DrawChipPicker()
     {
         ImGui.SetNextItemWidth(180);
-        ImGui.Combo("Kind", ref chipKind, string.Join('\0', Catalog.ChipKinds) + "\0");
+        if (ImGui.Combo("Kind", ref chipKind, string.Join('\0', Catalog.ChipKinds) + "\0"))
+        {
+            ClearChipDraft();
+            lastChipKind = chipKind;
+        }
+        if (chipKind != lastChipKind)
+        {
+            ClearChipDraft();
+            lastChipKind = chipKind;
+        }
+
         var kind = (ChipKind)chipKind;
-        var opts = Catalog.OptionsFor(kind);
+        var snap = plugin.Snapshot();
+        var current = Catalog.CurrentFor(kind, snap);
 
         if (kind == ChipKind.PartySize)
         {
@@ -87,25 +131,51 @@ public sealed partial class MainWindow
             ImGui.InputInt("Members", ref partyN);
             partyN = Math.Clamp(partyN, 0, 24);
             chipValue = partyCmp == "=" ? partyN.ToString() : partyCmp + partyN;
+            CurrentButton(current, v => { chipValue = v; if (int.TryParse(v, out var n)) partyN = n; });
             return;
         }
 
-        if (opts.Length > 0)
-        {
-            var idx = Array.FindIndex(opts, o => o.Equals(chipValue, StringComparison.OrdinalIgnoreCase));
-            if (idx < 0) idx = 0;
-            ImGui.SetNextItemWidth(220);
-            var labels = kind == ChipKind.Duty ? opts.Select(Catalog.DutyLabel).ToArray() : opts;
-            if (ImGui.Combo("Value", ref idx, string.Join('\0', labels) + "\0"))
-                chipValue = opts[idx];
-            if (string.IsNullOrEmpty(chipValue)) chipValue = opts[0];
-        }
-
+        var opts = Catalog.OptionsFor(kind);
+        if (opts.Length > 0) DrawOptionList(kind, opts, current);
         if (Catalog.UsesCustom(kind) && kind != ChipKind.PartySize)
         {
             ImGui.SetNextItemWidth(220);
             ImGui.InputTextWithHint("##custom", Catalog.HintFor(kind), ref chipValue, 48);
         }
+    }
+
+    private void DrawOptionList(ChipKind kind, string[] opts, string current)
+    {
+        CurrentButton(current, v => chipValue = v);
+        var labels = kind == ChipKind.Duty ? opts.Select(Catalog.DutyLabel).ToArray() : opts;
+        if (Catalog.LongList(kind) || opts.Length > 16)
+        {
+            ImGui.SetNextItemWidth(220);
+            ImGui.InputTextWithHint("##searchv", "Search / type a value", ref chipValue, 48);
+            ImGui.SameLine();
+            if (ImGui.Button("Browse"))
+                plugin.OpenPicker(Catalog.ChipKinds[(int)kind], opts, v => chipValue = v, current);
+            foreach (var hit in Catalog.Filter(opts, chipValue).Take(8))
+            {
+                ImGui.SameLine();
+                if (ImGui.SmallButton(hit)) chipValue = hit;
+            }
+            return;
+        }
+
+        var idx = Array.FindIndex(opts, o => o.Equals(chipValue, StringComparison.OrdinalIgnoreCase));
+        if (idx < 0) idx = 0;
+        ImGui.SetNextItemWidth(220);
+        if (ImGui.Combo("Value", ref idx, string.Join('\0', labels) + "\0"))
+            chipValue = opts[idx];
+        if (string.IsNullOrEmpty(chipValue) && opts.Length > 0) chipValue = opts[0];
+    }
+
+    private void CurrentButton(string current, Action<string> set)
+    {
+        if (string.IsNullOrWhiteSpace(current)) return;
+        if (ImGui.SmallButton("current: " + current + " [+]")) set(current);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use what is true right now");
     }
 
     private string DraftLabel()
@@ -152,7 +222,17 @@ public sealed partial class MainWindow
     private void DrawThenPicker()
     {
         ImGui.SetNextItemWidth(180);
-        ImGui.Combo("Action", ref thenKind, string.Join('\0', Catalog.ThenKinds) + "\0");
+        if (ImGui.Combo("Action", ref thenKind, string.Join('\0', Catalog.ThenKinds) + "\0"))
+        {
+            ClearThenDraft();
+            lastThenKind = thenKind;
+        }
+        if (thenKind != lastThenKind)
+        {
+            ClearThenDraft();
+            lastThenKind = thenKind;
+        }
+
         var kind = (ThenKind)thenKind;
         if (kind == ThenKind.Command)
         {
@@ -173,6 +253,7 @@ public sealed partial class MainWindow
             if (ImGui.Combo("Status", ref idx, string.Join('\0', Catalog.Statuses) + "\0"))
                 thenValue = Catalog.Statuses[idx];
             if (string.IsNullOrEmpty(thenValue)) thenValue = Catalog.Statuses[0];
+            CurrentButton(plugin.Snapshot().OnlineStatus, v => thenValue = v);
         }
         else if (kind == ThenKind.Notify)
         {
@@ -182,16 +263,32 @@ public sealed partial class MainWindow
         else
         {
             ImGui.SetNextItemWidth(120);
-            ImGui.Combo("Section", ref configSection, "System\0UI\0");
+            if (ImGui.Combo("Section", ref configSection, "System\0UI\0"))
+            {
+                pickedOption = string.Empty;
+                optionQuery = string.Empty;
+                optionPick = 0;
+            }
             var names = configSection == 0 ? Catalog.SystemOptions : Catalog.UiOptions;
             var gIdx = Array.IndexOf(Catalog.ConfigGroups, configGroup);
             if (gIdx < 0) gIdx = 0;
             ImGui.SameLine();
             ImGui.SetNextItemWidth(160);
             if (ImGui.Combo("Group", ref gIdx, string.Join('\0', Catalog.ConfigGroups) + "\0"))
+            {
                 configGroup = Catalog.ConfigGroups[gIdx];
+                pickedOption = string.Empty;
+                optionPick = 0;
+            }
             ImGui.SetNextItemWidth(200);
             ImGui.InputTextWithHint("##oq", "Search setting name", ref optionQuery, 48);
+            ImGui.SameLine();
+            if (ImGui.Button("Browse##cfg"))
+            {
+                var pool = Catalog.InGroup(names, configGroup).ToArray();
+                if (pool.Length == 0) pool = names.ToArray();
+                plugin.OpenPicker("Game setting", pool, v => pickedOption = v, pickedOption);
+            }
             var hits = Catalog.Filter(Catalog.InGroup(names, configGroup), optionQuery).Take(16).ToArray();
             if (hits.Length == 0) hits = Catalog.Filter(names, optionQuery).Take(16).ToArray();
             if (optionPick >= hits.Length) optionPick = 0;
@@ -199,6 +296,8 @@ public sealed partial class MainWindow
             if (hits.Length > 0 && ImGui.Combo("Setting", ref optionPick, string.Join('\0', hits) + "\0"))
                 pickedOption = hits[optionPick];
             if (hits.Length > 0 && string.IsNullOrEmpty(pickedOption)) pickedOption = hits[0];
+            var nowVal = Catalog.CurrentSetting(configSection == 0 ? ConfigSection.System : ConfigSection.Ui, pickedOption);
+            CurrentButton(nowVal, v => thenValue = v);
             ImGui.SetNextItemWidth(120);
             var onoff = Array.IndexOf(Catalog.ValuesOnOff, thenValue);
             if (onoff >= 0)
