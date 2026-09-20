@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Dalamud.Game.Config;
+using Lumina.Excel.Sheets;
 
 namespace AndThen;
 
@@ -14,7 +15,8 @@ internal static class Catalog
         "Dead", "Occupied", "BetweenAreas", "Jumping", "Casting", "Fishing",
         "PvP", "Housing", "WeaponDrawn", "InParty", "HasTarget", "Emoting",
         "Performing", "Trade", "Fashion", "RolePlaying", "LoggedIn",
-        "Sitting", "Event", "DeepDungeon",
+        "Sitting", "Event", "DeepDungeon", "UsingItem", "Talking",
+        "WatchingCutscene", "BoundByDuty",
     ];
 
     public static readonly string[] Jobs =
@@ -29,7 +31,11 @@ internal static class Catalog
     public static readonly string[] Roles = ["Tank", "Healer", "DPS", "Crafter", "Gatherer"];
     public static readonly string[] Duties = ["any", "none", "solid", "dungeon", "trial", "raid", "alliance", "pvp", "deep", "field"];
     public static readonly string[] Groups = ["Solo", "Light", "Full", "Alliance"];
-    public static readonly string[] Places = ["Town", "Overworld", "Indoor", "Housing", "Inn", "Sanctuary", "PvP", "GoldSaucer", "DeepDungeon", "Field"];
+    public static readonly string[] Places =
+    [
+        "Town", "Overworld", "Indoor", "Housing", "Inn", "Sanctuary",
+        "PvP", "GoldSaucer", "DeepDungeon", "Field", "Dungeon", "Trial", "Raid", "Alliance",
+    ];
     public static readonly string[] Targets = ["none", "any", "player", "npc"];
     public static readonly string[] Times = ["day", "night", "dawn", "dusk"];
     public static readonly string[] Weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -37,7 +43,12 @@ internal static class Catalog
     public static readonly string[] Nearby = ["empty", "few", "crowded"];
     public static readonly string[] Compare = [">=", "<=", ">", "<", "="];
     public static readonly string[] DataCenters = ["Aether", "Primal", "Crystal", "Dynamis", "Elemental", "Gaia", "Mana", "Meteor", "Light", "Chaos", "Materia"];
-    public static readonly string[] Weathers = ["Fair Skies", "Clear Skies", "Clouds", "Fog", "Wind", "Gales", "Rain", "Showers", "Thunder", "Thunderstorms", "Snow", "Blizzards", "Dust Storms", "Heat Waves", "Gloom", "Umbral Wind", "Umbral Static"];
+    public static readonly string[] Weathers =
+    [
+        "Fair Skies", "Clear Skies", "Clouds", "Fog", "Wind", "Gales", "Rain", "Showers",
+        "Thunder", "Thunderstorms", "Snow", "Blizzards", "Dust Storms", "Heat Waves",
+        "Gloom", "Umbral Wind", "Umbral Static", "Moon Dust", "Astromagnetic Storms",
+    ];
     public static readonly string[] ValuesOnOff = ["on", "off"];
     public static readonly string[] ConfigGroups = ["Sound", "Nameplates", "Battle effects", "Graphics", "Camera", "Display", "Other"];
 
@@ -45,6 +56,7 @@ internal static class Catalog
     [
         "State", "Job", "Role", "Zone", "World", "Data Center", "Party size",
         "Duty", "Group size", "Time", "Weather", "Nearby", "Place", "Target",
+        "Online status",
     ];
 
     public static readonly string[] ThenKinds = ["Command", "Wait", "Online status", "Game setting", "Chat notice"];
@@ -65,12 +77,17 @@ internal static class Catalog
         ChipKind.Time => Times.Concat(Weekdays).ToArray(),
         ChipKind.Weather => Weathers,
         ChipKind.DataCenter => DataCenters,
+        ChipKind.OnlineStatus => Statuses,
+        ChipKind.Zone => ZoneNames(),
+        ChipKind.World => WorldNames(),
         _ => [],
     };
 
     public static bool UsesList(ChipKind kind) => OptionsFor(kind).Length > 0;
     public static bool UsesCustom(ChipKind kind) =>
-        kind is ChipKind.Zone or ChipKind.World or ChipKind.Weather or ChipKind.PartySize or ChipKind.Time;
+        kind is ChipKind.Zone or ChipKind.World or ChipKind.Weather or ChipKind.PartySize or ChipKind.Time or ChipKind.Nearby;
+    public static bool LongList(ChipKind kind) =>
+        kind is ChipKind.Zone or ChipKind.World or ChipKind.Weather or ChipKind.State or ChipKind.Job;
 
     public static string HintFor(ChipKind kind) => kind switch
     {
@@ -79,7 +96,28 @@ internal static class Catalog
         ChipKind.Weather => "Or type a weather name",
         ChipKind.PartySize => "Number of party members",
         ChipKind.Time => "Or type et>=18 / lt>=20",
+        ChipKind.Nearby => "empty / few / crowded or >=3",
         _ => "Value",
+    };
+
+    public static string CurrentFor(ChipKind kind, GameSnapshot snap) => kind switch
+    {
+        ChipKind.State => snap.States.Contains("LoggedIn") ? "LoggedIn" : string.Empty,
+        ChipKind.Job => snap.JobAbbr,
+        ChipKind.Role => snap.Role,
+        ChipKind.Zone => snap.TerritoryName,
+        ChipKind.World => snap.WorldName,
+        ChipKind.DataCenter => snap.DataCenterName,
+        ChipKind.PartySize => snap.PartySize.ToString(),
+        ChipKind.Duty => snap.States.Contains("InDuty") ? "solid" : "none",
+        ChipKind.Group => snap.Group,
+        ChipKind.Time => $"et={snap.EorzeaHour}",
+        ChipKind.Weather => snap.Weather,
+        ChipKind.Nearby => snap.Nearby.ToString(),
+        ChipKind.Place => snap.Place,
+        ChipKind.Target => snap.Target,
+        ChipKind.OnlineStatus => snap.OnlineStatus,
+        _ => string.Empty,
     };
 
     public static string DutyLabel(string value) => value.ToLowerInvariant() switch
@@ -116,6 +154,60 @@ internal static class Catalog
         query = (query ?? string.Empty).Trim();
         if (query.Length == 0) return names;
         return names.Where(n => n.Contains(query, StringComparison.OrdinalIgnoreCase) || GroupOf(n).Contains(query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static string CurrentSetting(ConfigSection section, string option)
+    {
+        option = (option ?? string.Empty).Trim();
+        if (option.Length == 0) return string.Empty;
+        try
+        {
+            if (section == ConfigSection.Ui)
+            {
+                if (!Enum.TryParse<UiConfigOption>(option, true, out var ui)) return string.Empty;
+                if (Plugin.GameConfig.TryGet(ui, out uint n)) return n.ToString();
+                if (Plugin.GameConfig.TryGet(ui, out bool on)) return on ? "on" : "off";
+                return string.Empty;
+            }
+            if (!Enum.TryParse<SystemConfigOption>(option, true, out var sys)) return string.Empty;
+            if (Plugin.GameConfig.TryGet(sys, out uint sn)) return sn.ToString();
+            if (Plugin.GameConfig.TryGet(sys, out bool son)) return son ? "on" : "off";
+        }
+        catch { /* config not ready */ }
+        return string.Empty;
+    }
+
+    public static string[] ZoneNames()
+    {
+        try
+        {
+            var sheet = Plugin.DataManager.GetExcelSheet<TerritoryType>();
+            var set = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in sheet)
+            {
+                var name = row.PlaceName.ValueNullable?.Name.ToString();
+                if (!string.IsNullOrWhiteSpace(name)) set.Add(name);
+            }
+            return set.ToArray();
+        }
+        catch { return []; }
+    }
+
+    public static string[] WorldNames()
+    {
+        try
+        {
+            var sheet = Plugin.DataManager.GetExcelSheet<World>();
+            var set = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in sheet)
+            {
+                if (row.DataCenter.RowId == 0) continue;
+                var name = row.Name.ToString();
+                if (!string.IsNullOrWhiteSpace(name)) set.Add(name);
+            }
+            return set.ToArray();
+        }
+        catch { return []; }
     }
 
     private static bool Starts(string option, params string[] prefixes) =>
