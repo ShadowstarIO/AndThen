@@ -16,6 +16,7 @@ internal static class Share
     };
 
     public static string ToJson(ThenRule rule) => JsonSerializer.Serialize(rule, Json);
+    public static string ToJsonAll(IEnumerable<ThenRule> rules) => JsonSerializer.Serialize(rules, Json);
 
     public static string Encode(ThenRule rule)
     {
@@ -29,6 +30,14 @@ internal static class Share
     public static bool TryDecode(string text, out ThenRule? rule, out string error)
     {
         rule = null;
+        if (!TryDecodeMany(text, out var many, out error) || many.Count == 0) return false;
+        rule = many[0];
+        return true;
+    }
+
+    public static bool TryDecodeMany(string text, out List<ThenRule> rules, out string error)
+    {
+        rules = [];
         error = string.Empty;
         text = (text ?? string.Empty).Trim();
         if (text.Length == 0)
@@ -39,18 +48,45 @@ internal static class Share
 
         try
         {
-            if (text.StartsWith('{') || text.StartsWith('['))
+            if (text.StartsWith('['))
             {
-                if (text.StartsWith('['))
+                var many = JsonSerializer.Deserialize<List<ThenRule>>(text, Json);
+                if (many is { Count: > 0 }) rules.AddRange(many);
+            }
+            else if (text.StartsWith('{'))
+            {
+                var one = JsonSerializer.Deserialize<ThenRule>(text, Json);
+                if (one is not null) rules.Add(one);
+            }
+            else
+            {
+                foreach (var part in text.Split(['\n', '\r', ' '], StringSplitOptions.RemoveEmptyEntries))
                 {
-                    var many = JsonSerializer.Deserialize<List<ThenRule>>(text, Json);
-                    rule = many is { Count: > 0 } ? many[0] : null;
+                    if (!TryOneCode(part, out var rule) || rule is null) continue;
+                    rules.Add(rule);
                 }
-                else rule = JsonSerializer.Deserialize<ThenRule>(text, Json);
-                if (rule is null) { error = "Empty share."; return false; }
-                return true;
             }
 
+            if (rules.Count == 0)
+            {
+                error = "No rules in that share.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryOneCode(string text, out ThenRule? rule)
+    {
+        rule = null;
+        try
+        {
             if (text.StartsWith("AT1.", StringComparison.OrdinalIgnoreCase))
                 text = text[4..];
             text = text.Replace('-', '+').Replace('_', '/');
@@ -61,12 +97,10 @@ internal static class Share
             using var outMs = new MemoryStream();
             gz.CopyTo(outMs);
             rule = JsonSerializer.Deserialize<ThenRule>(Encoding.UTF8.GetString(outMs.ToArray()), Json);
-            if (rule is null) { error = "Empty share."; return false; }
-            return true;
+            return rule is not null;
         }
-        catch (Exception ex)
+        catch
         {
-            error = ex.Message;
             return false;
         }
     }
