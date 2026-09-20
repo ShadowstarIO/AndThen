@@ -19,6 +19,7 @@ public enum ChipKind
     Nearby = 11,
     Place = 12,
     Target = 13,
+    OnlineStatus = 14,
 }
 
 public enum ThenKind
@@ -65,6 +66,7 @@ public class RuleChip
         ChipKind.Nearby => $"Nearby {Value}",
         ChipKind.Place => $"Place {Value}",
         ChipKind.Target => $"Target {Value}",
+        ChipKind.OnlineStatus => $"Status {Value}",
         _ => Value,
     };
 }
@@ -97,6 +99,7 @@ public class ThenRule
     public string Folder { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
     public ApplyMode Mode { get; set; } = ApplyMode.Off;
+    public float DelaySec { get; set; }
     public List<RuleChip> AndChips { get; set; } = [];
     public List<RuleChip> OrChips { get; set; } = [];
     public List<RuleChip> NotChips { get; set; } = [];
