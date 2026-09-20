@@ -25,7 +25,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static IGameConfig GameConfig { get; private set; } = null!;
 
-    public const string AppVersion = "0.0.1.2";
+    public const string AppVersion = "0.0.1.3";
     private const string CommandName = "/andthen";
     private const string CommandAlias = "/atn";
 
@@ -122,22 +122,31 @@ public sealed class Plugin : IDalamudPlugin
         copy.Name = rule.Name + " (copy)";
         copy.Enabled = false;
         copy.Mode = ApplyMode.Off;
+        copy.Folder = rule.Folder;
         Configuration.Rules.Add(copy);
         Configuration.Save();
         mainWindow.OpenRule(copy.Id);
     }
 
-    public bool TryImport(string text, out string error)
+    public bool TryImport(string text, out string error) => TryImportMany(text, false, out error);
+
+    public bool TryImportMany(string text, bool replace, out string error)
     {
-        if (!Share.TryDecode(text, out var rule, out error) || rule is null) return false;
-        rule.Id = Guid.NewGuid().ToString("N");
-        if (string.IsNullOrWhiteSpace(rule.Name)) rule.Name = "Imported rule";
-        else rule.Name += " (copy)";
-        rule.Enabled = false;
-        rule.Mode = ApplyMode.Off;
-        Configuration.Rules.Add(rule);
+        if (!Share.TryDecodeMany(text, out var many, out error) || many.Count == 0) return false;
+        if (replace) Configuration.Rules.Clear();
+        ThenRule? last = null;
+        foreach (var rule in many)
+        {
+            rule.Id = Guid.NewGuid().ToString("N");
+            if (string.IsNullOrWhiteSpace(rule.Name)) rule.Name = "Imported rule";
+            else if (!replace) rule.Name += " (copy)";
+            rule.Enabled = false;
+            rule.Mode = ApplyMode.Off;
+            Configuration.Rules.Add(rule);
+            last = rule;
+        }
         Configuration.Save();
-        mainWindow.OpenRule(rule.Id);
+        if (last is not null) mainWindow.OpenRule(last.Id);
         error = string.Empty;
         return true;
     }
@@ -217,7 +226,7 @@ public sealed class Plugin : IDalamudPlugin
             {
                 var name = parts.Length > 1 ? parts[1] : string.Empty;
                 var rule = string.IsNullOrWhiteSpace(name) ? null : FindRule(name);
-                if (rule is null) Notify("Name a rule: /atn why Duty start");
+                if (rule is null) Notify("Name a rule: /atn why RuleName");
                 else foreach (var line in Engine.Why(rule, Snapshot())) Notify(line);
                 break;
             }
@@ -225,7 +234,7 @@ public sealed class Plugin : IDalamudPlugin
             {
                 var name = parts.Length > 1 ? parts[1] : string.Empty;
                 var rule = string.IsNullOrWhiteSpace(name) ? null : FindRule(name);
-                if (rule is null) Notify("Name a rule: /atn dry Duty start");
+                if (rule is null) Notify("Name a rule: /atn dry RuleName");
                 else foreach (var line in Engine.Preview(rule)) Notify(line);
                 break;
             }
