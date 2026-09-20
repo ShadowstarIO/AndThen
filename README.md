@@ -15,13 +15,14 @@ Keep rules in a folder tree. Each rule has a Name, a Note, IF chips, and a THEN 
 - **Dialog** — when the rule becomes true, a popup lists matching Dialog rules. Click one to apply. Same match set does not ask again. `/atn ask` brings the list back.
 - **Auto** — runs the THEN stack once when the rule becomes true. Does not run again until it goes false and true again.
 
-Rules do not revert. Write a second rule for the other state.
+Wait on a rule is how long the condition must stay true before Auto or Dialog fires. Rules do not revert. Write a second rule for the other state.
 
 ## Features
 
-* **Folder tree** : left list like Glamourer / Penumbra. Folders expand. Drag a rule onto a folder. `+ Rule` / `+ Folder` / Paste / Delete at the bottom. Nested folders use `/`.
-* **Pick, then place** : choose Kind and Value first, then Add to IF / OR / NOT. Same for THEN.
+* **Folder tree** : left list like Glamourer / Penumbra. Folders expand. Drag a rule onto a folder. Icons at the bottom of the list (new rule, new folder, paste, delete). Nested folders use `/`.
+* **Pick, then place** : choose Kind and Value first, then Add to IF / OR / NOT. Same for THEN. Long lists open a Browse window. `current: [Name +]` uses what is true right now.
 * **Live chips** : teal means that chip is true right now.
+* **Quiet** : Settings can block Auto and Dialog during cutscenes, combat, duty, and similar states. `/atn Name` and Test still run.
 * **Share** : JSON or `AT1.` from the rule. Settings can copy every rule at once. Imports start Off.
 * **Rising edge only** : a rule that stays true does not apply again.
 

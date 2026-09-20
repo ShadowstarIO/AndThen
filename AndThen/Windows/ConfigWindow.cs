@@ -15,8 +15,8 @@ public sealed class ConfigWindow : Window
         this.plugin = plugin;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(420, 360),
-            MaximumSize = new Vector2(720, 800),
+            MinimumSize = new Vector2(420, 420),
+            MaximumSize = new Vector2(720, 900),
         };
     }
 
@@ -32,9 +32,6 @@ public sealed class ConfigWindow : Window
         var open = cfg.OpenUiOnLoad;
         if (ImGui.Checkbox("Open on login", ref open)) { cfg.OpenUiOnLoad = open; cfg.Save(); }
 
-        var quiet = cfg.QuietInCutscene;
-        if (ImGui.Checkbox("Do not Auto during cutscenes", ref quiet)) { cfg.QuietInCutscene = quiet; cfg.Save(); }
-
         var poll = cfg.PollSec;
         ImGui.SetNextItemWidth(120);
         if (ImGui.InputFloat("Check interval (seconds)", ref poll, 0.25f, 0.5f, "%.2f"))
@@ -42,6 +39,29 @@ public sealed class ConfigWindow : Window
             cfg.PollSec = Math.Clamp(poll, 0.25f, 5f);
             cfg.Save();
         }
+
+        var delay = cfg.DefaultDelaySec;
+        ImGui.SetNextItemWidth(120);
+        if (ImGui.InputFloat("Default wait (seconds)", ref delay, 0.5f, 1f, "%.1f"))
+        {
+            cfg.DefaultDelaySec = Math.Clamp(delay, 0f, 120f);
+            cfg.Save();
+        }
+        ImGui.TextDisabled("New rules copy this wait. 0 = fire as soon as the condition is true.");
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Do not Auto or Dialog while");
+        Quiet(cfg, "Cutscenes", () => cfg.QuietInCutscene, v => cfg.QuietInCutscene = v);
+        Quiet(cfg, "Combat", () => cfg.QuietInCombat, v => cfg.QuietInCombat = v);
+        Quiet(cfg, "Inside a duty", () => cfg.QuietInDuty, v => cfg.QuietInDuty = v);
+        Quiet(cfg, "Between areas", () => cfg.QuietBetweenAreas, v => cfg.QuietBetweenAreas = v);
+        Quiet(cfg, "Occupied (event, NPC, item)", () => cfg.QuietWhenOccupied, v => cfg.QuietWhenOccupied = v);
+        Quiet(cfg, "GPose", () => cfg.QuietInGPose, v => cfg.QuietInGPose = v);
+        Quiet(cfg, "Dead", () => cfg.QuietWhenDead, v => cfg.QuietWhenDead = v);
+        Quiet(cfg, "Crafting", () => cfg.QuietWhenCrafting, v => cfg.QuietWhenCrafting = v);
+        Quiet(cfg, "Performing", () => cfg.QuietWhenPerforming, v => cfg.QuietWhenPerforming = v);
+        Quiet(cfg, "Trade window", () => cfg.QuietWhenTrading, v => cfg.QuietWhenTrading = v);
+        ImGui.TextDisabled("/atn Name and Test still run.");
 
         ImGui.Separator();
         ImGui.TextUnformatted("Backup");
@@ -86,5 +106,11 @@ public sealed class ConfigWindow : Window
         if (plugin.Engine.Log.Count == 0) ImGui.TextDisabled("None yet.");
         foreach (var line in plugin.Engine.Log)
             ImGui.TextUnformatted($"{line.At:HH:mm:ss}  {line.Name}  {line.Detail}");
+    }
+
+    private static void Quiet(Configuration cfg, string label, Func<bool> get, Action<bool> set)
+    {
+        var v = get();
+        if (ImGui.Checkbox(label, ref v)) { set(v); cfg.Save(); }
     }
 }
