@@ -59,7 +59,11 @@ internal static class Catalog
         "Online status",
     ];
 
-    public static readonly string[] ThenKinds = ["Command", "Wait", "Online status", "Game setting", "Chat notice"];
+    public static readonly string[] ThenKinds =
+    [
+        "Command", "Wait", "Online status", "Game setting", "Chat notice",
+        "Log Out", "Close Game", "Penumbra Mod", "Penumbra Reset",
+    ];
 
     public static IReadOnlyList<string> SystemOptions { get; } = Enum.GetNames<SystemConfigOption>().OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
     public static IReadOnlyList<string> UiOptions { get; } = Enum.GetNames<UiConfigOption>().OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
