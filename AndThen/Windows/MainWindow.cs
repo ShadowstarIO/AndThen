@@ -11,27 +11,30 @@ namespace AndThen.Windows;
 public sealed partial class MainWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
-    private string newRuleName = string.Empty;
-    private string newFolder = string.Empty;
+    private string newName = string.Empty;
     private string filter = string.Empty;
-    private string selectedFolder = "All";
     private string? selectedRuleId;
+    private string selectedFolder = string.Empty;
     private string importMsg = string.Empty;
     private string chipValue = string.Empty;
     private string thenValue = string.Empty;
     private string optionQuery = string.Empty;
+    private string pickedOption = string.Empty;
+    private string configGroup = "Graphics";
+    private string partyCmp = ">=";
+    private int partyN = 4;
     private int chipKind;
     private int thenKind;
     private int configSection;
     private int waitMs = 250;
-    private string pickedOption = string.Empty;
+    private int optionPick;
     private string? dragRuleId;
-    private readonly HashSet<string> openFolders = new(StringComparer.OrdinalIgnoreCase) { "Examples" };
+    private readonly HashSet<string> openFolders = new(StringComparer.OrdinalIgnoreCase);
 
     public MainWindow(Plugin plugin) : base($"AndThen v{Plugin.AppVersion}###AndThenMain")
     {
         this.plugin = plugin;
-        SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(920, 560), MaximumSize = new Vector2(1800, 1400) };
+        SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(960, 560), MaximumSize = new Vector2(1800, 1400) };
     }
 
     public void Dispose() { }
@@ -51,68 +54,47 @@ public sealed partial class MainWindow : Window, IDisposable
         if (ImGui.Button("Settings")) plugin.ToggleConfigUi();
         ImGui.SameLine();
         ImGui.TextDisabled(plugin.IsPaused ? "Paused" : plugin.Snapshot().Line());
-        var matches = plugin.CurrentMatches();
-        ImGui.TextUnformatted(matches.Count == 0 ? "Match: none" : "Match:");
-        foreach (var rule in matches.Take(8)) { ImGui.SameLine(); if (ImGui.SmallButton(rule.Name)) OpenRule(rule.Id); }
-        ImGui.SetNextItemWidth(220);
-        ImGui.InputTextWithHint("##filter", "Search name, note, chips", ref filter, 80);
+        if (!string.IsNullOrEmpty(importMsg)) { ImGui.SameLine(); ImGui.TextDisabled(importMsg); }
         ImGui.Separator();
+
         var avail = ImGui.GetContentRegionAvail();
-        ImGui.BeginChild("left", new Vector2(Math.Min(340, avail.X * 0.36f), 0), true);
-        DrawTree(cfg);
+        var leftW = Math.Clamp(avail.X * 0.30f, 240, 360);
+        ImGui.BeginChild("left", new Vector2(leftW, 0), true);
+        DrawSelector(cfg);
         ImGui.EndChild();
         ImGui.SameLine();
         ImGui.BeginChild("right", new Vector2(0, 0), true);
         var selected = cfg.Rules.Find(r => r.Id == selectedRuleId);
-        if (selected is null) ImGui.TextDisabled("Select a rule.");
+        if (selected is null) ImGui.TextDisabled("Select a rule, or add one with + Rule.");
         else DrawEditor(cfg, selected);
         ImGui.EndChild();
     }
 
+    private void DrawSelector(Configuration cfg)
+    {
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputTextWithHint("##filter", "Search", ref filter, 80);
+        var bar = ImGui.GetFrameHeight() + 8;
+        ImGui.BeginChild("tree", new Vector2(0, -bar), false);
+        DrawTree(cfg);
+        ImGui.EndChild();
+        DrawBottomBar(cfg);
+    }
+
     private void DrawTree(Configuration cfg)
     {
-        if (ImGui.Selectable("All", selectedFolder == "All")) selectedFolder = "All";
-        DropFolder(cfg, string.Empty);
-        if (ImGui.Selectable("Ungrouped", selectedFolder == "Ungrouped")) selectedFolder = "Ungrouped";
-        DropFolder(cfg, string.Empty);
-        var folders = cfg.Folders.Concat(cfg.Rules.Select(r => r.FolderKey)).Where(f => f.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
-        foreach (var folder in folders) DrawFolder(cfg, folder);
-        ImGui.Separator();
+        var folders = cfg.Folders
+            .Concat(cfg.Rules.Select(r => r.FolderKey))
+            .Where(f => f.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        DrawFolderBranch(cfg, string.Empty, folders);
         ThenRule? remove = null;
-        if (selectedFolder is "All" or "Ungrouped")
-            foreach (var rule in cfg.Rules.Where(r => Visible(r) && (selectedFolder == "All" || string.IsNullOrWhiteSpace(r.Folder))))
-                if (DrawRuleRow(cfg, rule)) remove = rule;
-        ImGui.Separator();
-        ImGui.SetNextItemWidth(-1);
-        ImGui.InputTextWithHint("##nf", "New folder", ref newFolder, 40);
-        if (ImGui.Button("Add folder") && !string.IsNullOrWhiteSpace(newFolder))
-        {
-            if (!cfg.Folders.Contains(newFolder.Trim(), StringComparer.OrdinalIgnoreCase)) cfg.Folders.Add(newFolder.Trim());
-            selectedFolder = newFolder.Trim();
-            openFolders.Add(selectedFolder);
-            newFolder = string.Empty;
-            cfg.Save();
-        }
-        ImGui.SameLine();
-        ImGui.SetNextItemWidth(140);
-        ImGui.InputTextWithHint("##nr", "New rule", ref newRuleName, 64);
-        if (ImGui.Button("Add rule"))
-        {
-            var rule = new ThenRule
-            {
-                Name = string.IsNullOrWhiteSpace(newRuleName) ? "New rule" : newRuleName.Trim(),
-                Enabled = true, Mode = ApplyMode.Off,
-                Folder = selectedFolder is "All" or "Ungrouped" ? string.Empty : selectedFolder,
-            };
-            cfg.Rules.Add(rule);
-            OpenRule(rule.Id);
-            newRuleName = string.Empty;
-            cfg.Save();
-        }
-        if (ImGui.Button("Import"))
-            importMsg = plugin.TryImport(ImGui.GetClipboardText() ?? string.Empty, out var err) ? "Imported." : err;
-        if (!string.IsNullOrEmpty(importMsg)) { ImGui.SameLine(); ImGui.TextDisabled(importMsg); }
+        foreach (var rule in cfg.Rules.Where(r => string.IsNullOrWhiteSpace(r.Folder) && Visible(r)))
+            if (DrawRuleRow(cfg, rule)) remove = rule;
+        DropFolder(cfg, string.Empty);
         if (remove is not null)
         {
             cfg.Rules.Remove(remove);
@@ -121,33 +103,63 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private void DrawFolder(Configuration cfg, string folder)
+    private void DrawFolderBranch(Configuration cfg, string parent, List<string> all)
     {
-        var open = openFolders.Contains(folder);
-        if (ImGui.SmallButton(open ? "-" : "+")) { if (open) openFolders.Remove(folder); else openFolders.Add(folder); }
-        ImGui.SameLine();
-        var mute = cfg.MutedFolders.Contains(folder);
-        if (ImGui.Checkbox($"##m{folder}", ref mute))
+        var depth = parent.Length == 0 ? 0 : parent.Count(c => c == '/') + 1;
+        foreach (var folder in all.Where(f => FolderParent(f) == parent))
         {
-            if (mute && !cfg.MutedFolders.Contains(folder)) cfg.MutedFolders.Add(folder);
-            if (!mute) cfg.MutedFolders.RemoveAll(f => f.Equals(folder, StringComparison.OrdinalIgnoreCase));
-            cfg.Save();
+            ImGui.PushID(folder);
+            var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
+            if (selectedFolder.Equals(folder, StringComparison.OrdinalIgnoreCase))
+                flags |= ImGuiTreeNodeFlags.Selected;
+            if (openFolders.Contains(folder) || depth == 0) flags |= ImGuiTreeNodeFlags.DefaultOpen;
+            var open = ImGui.TreeNodeEx(FolderLeaf(folder) + "###f" + folder, flags);
+            if (ImGui.IsItemClicked()) selectedFolder = folder;
+            DropFolder(cfg, folder);
+            FolderMenu(cfg, folder);
+            if (open)
+            {
+                openFolders.Add(folder);
+                DrawFolderBranch(cfg, folder, all);
+                ThenRule? kill = null;
+                foreach (var rule in cfg.Rules.Where(r => r.FolderKey.Equals(folder, StringComparison.OrdinalIgnoreCase) && Visible(r)))
+                    if (DrawRuleRow(cfg, rule)) kill = rule;
+                if (kill is not null)
+                {
+                    cfg.Rules.Remove(kill);
+                    if (selectedRuleId == kill.Id) selectedRuleId = null;
+                    cfg.Save();
+                }
+                ImGui.TreePop();
+            }
+            else openFolders.Remove(folder);
+            ImGui.PopID();
         }
-        ImGui.SameLine();
-        if (ImGui.Selectable(folder, selectedFolder.Equals(folder, StringComparison.OrdinalIgnoreCase))) selectedFolder = folder;
-        DropFolder(cfg, folder);
-        if (!openFolders.Contains(folder)) return;
-        ImGui.Indent();
-        ThenRule? remove = null;
-        foreach (var rule in cfg.Rules.Where(r => r.FolderKey.Equals(folder, StringComparison.OrdinalIgnoreCase) && Visible(r)))
-            if (DrawRuleRow(cfg, rule)) remove = rule;
-        ImGui.Unindent();
-        if (remove is not null)
+    }
+
+    private void FolderMenu(Configuration cfg, string folder)
+    {
+        if (!ImGui.BeginPopupContextItem("folder")) return;
+        if (ImGui.MenuItem("New rule here")) AddRule(cfg, folder);
+        if (ImGui.MenuItem("Copy folder JSON"))
         {
-            cfg.Rules.Remove(remove);
-            if (selectedRuleId == remove.Id) selectedRuleId = null;
-            cfg.Save();
+            var list = cfg.Rules.Where(r => r.FolderKey.Equals(folder, StringComparison.OrdinalIgnoreCase)).ToList();
+            ImGui.SetClipboardText(Share.ToJsonAll(list));
+            importMsg = "Copied folder JSON.";
         }
+        if (ImGui.GetIO().KeyShift)
+        {
+            if (ImGui.MenuItem("Delete folder"))
+            {
+                foreach (var rule in cfg.Rules.Where(r => r.FolderKey.Equals(folder, StringComparison.OrdinalIgnoreCase)))
+                    rule.Folder = string.Empty;
+                cfg.Folders.RemoveAll(f => f.Equals(folder, StringComparison.OrdinalIgnoreCase));
+                if (selectedFolder == folder) selectedFolder = string.Empty;
+                cfg.Save();
+            }
+        }
+        else ImGui.MenuItem("Delete folder (hold Shift)", false);
+        ImGui.EndPopup();
     }
 
     private bool DrawRuleRow(Configuration cfg, ThenRule rule)
@@ -155,9 +167,11 @@ public sealed partial class MainWindow : Window, IDisposable
         ImGui.PushID(rule.Id);
         Led(rule);
         ImGui.SameLine();
-        if (ImGui.Selectable(string.IsNullOrWhiteSpace(rule.Notes) ? rule.Name : $"{rule.Name}  ", selectedRuleId == rule.Id))
+        if (ImGui.Selectable(rule.Name, selectedRuleId == rule.Id))
+        {
             selectedRuleId = rule.Id;
-        if (!string.IsNullOrWhiteSpace(rule.Notes)) { ImGui.SameLine(); ImGui.TextDisabled(TrimOne(rule.Notes, 28)); }
+            selectedFolder = rule.FolderKey;
+        }
         if (ImGui.BeginDragDropSource())
         {
             dragRuleId = rule.Id;
@@ -166,21 +180,71 @@ public sealed partial class MainWindow : Window, IDisposable
             ImGui.EndDragDropSource();
         }
         var kill = false;
-        if (ImGui.BeginPopupContextItem("ctx"))
+        if (ImGui.BeginPopupContextItem("rule"))
         {
-            if (ImGui.MenuItem("Move down")) plugin.MoveRule(rule, 1);
-            if (ImGui.MenuItem("Move up")) plugin.MoveRule(rule, -1);
             if (ImGui.MenuItem("Duplicate")) plugin.DuplicateRule(rule);
             if (ImGui.MenuItem("Copy JSON")) { ImGui.SetClipboardText(Share.ToJson(rule)); importMsg = "Copied JSON."; }
             if (ImGui.MenuItem("Copy AT1")) { ImGui.SetClipboardText(Share.Encode(rule)); importMsg = "Copied share code."; }
             if (ImGui.MenuItem("Run THEN")) plugin.TestRule(rule);
-            if (ImGui.MenuItem("Why")) foreach (var line in plugin.Engine.Why(rule, plugin.Snapshot())) Plugin.Notify(line);
             if (ImGui.GetIO().KeyShift) { if (ImGui.MenuItem("Delete")) kill = true; }
             else ImGui.MenuItem("Delete (hold Shift)", false);
             ImGui.EndPopup();
         }
         ImGui.PopID();
         return kill;
+    }
+
+    private void DrawBottomBar(Configuration cfg)
+    {
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputTextWithHint("##nn", "Name for new rule or folder", ref newName, 64);
+        var w = (ImGui.GetContentRegionAvail().X - 6) / 4;
+        if (ImGui.Button("+ Rule", new Vector2(w, 0))) AddRule(cfg, selectedFolder);
+        ImGui.SameLine();
+        if (ImGui.Button("+ Folder", new Vector2(w, 0))) AddFolder(cfg);
+        ImGui.SameLine();
+        if (ImGui.Button("Paste", new Vector2(w, 0)))
+            importMsg = plugin.TryImport(ImGui.GetClipboardText() ?? string.Empty, out var err) ? "Imported." : err;
+        ImGui.SameLine();
+        var canDel = selectedRuleId is not null && ImGui.GetIO().KeyShift;
+        if (!canDel) ImGui.BeginDisabled();
+        if (ImGui.Button("Delete", new Vector2(w, 0)) && selectedRuleId is not null)
+        {
+            cfg.Rules.RemoveAll(r => r.Id == selectedRuleId);
+            selectedRuleId = null;
+            cfg.Save();
+        }
+        if (!canDel) ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip("Select a rule, hold Shift, then Delete.");
+    }
+
+    private void AddRule(Configuration cfg, string folder)
+    {
+        var rule = new ThenRule
+        {
+            Name = string.IsNullOrWhiteSpace(newName) ? "New rule" : newName.Trim(),
+            Enabled = true,
+            Mode = ApplyMode.Off,
+            Folder = folder,
+        };
+        cfg.Rules.Add(rule);
+        OpenRule(rule.Id);
+        newName = string.Empty;
+        cfg.Save();
+    }
+
+    private void AddFolder(Configuration cfg)
+    {
+        var name = string.IsNullOrWhiteSpace(newName) ? "New folder" : newName.Trim().Replace('\\', '/');
+        if (selectedFolder.Length > 0 && !name.Contains('/'))
+            name = selectedFolder + "/" + name;
+        if (!cfg.Folders.Contains(name, StringComparer.OrdinalIgnoreCase))
+            cfg.Folders.Add(name);
+        selectedFolder = name;
+        openFolders.Add(name);
+        newName = string.Empty;
+        cfg.Save();
     }
 
     private void DropFolder(Configuration cfg, string folder)
@@ -215,10 +279,18 @@ public sealed partial class MainWindow : Window, IDisposable
         if (rule.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)) return true;
         if ((rule.Notes ?? string.Empty).Contains(filter, StringComparison.OrdinalIgnoreCase)) return true;
         if ((rule.Folder ?? string.Empty).Contains(filter, StringComparison.OrdinalIgnoreCase)) return true;
-        foreach (var chip in rule.AndChips.Concat(rule.OrChips).Concat(rule.NotChips))
-            if (chip.Label.Contains(filter, StringComparison.OrdinalIgnoreCase)) return true;
-        foreach (var row in rule.Then)
-            if (row.Label.Contains(filter, StringComparison.OrdinalIgnoreCase)) return true;
         return false;
+    }
+
+    private static string FolderParent(string folder)
+    {
+        var i = folder.LastIndexOf('/');
+        return i < 0 ? string.Empty : folder[..i];
+    }
+
+    private static string FolderLeaf(string folder)
+    {
+        var i = folder.LastIndexOf('/');
+        return i < 0 ? folder : folder[(i + 1)..];
     }
 }
