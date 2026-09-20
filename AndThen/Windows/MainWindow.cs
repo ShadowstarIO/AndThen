@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
 
 namespace AndThen.Windows;
@@ -25,6 +26,8 @@ public sealed partial class MainWindow : Window, IDisposable
     private int partyN = 4;
     private int chipKind;
     private int thenKind;
+    private int lastChipKind = -1;
+    private int lastThenKind = -1;
     private int configSection;
     private int waitMs = 250;
     private int optionPick;
@@ -47,11 +50,11 @@ public sealed partial class MainWindow : Window, IDisposable
         var enabled = cfg.Enabled;
         if (ImGui.Checkbox("Enabled", ref enabled)) { cfg.Enabled = enabled; cfg.Save(); }
         ImGui.SameLine();
-        if (ImGui.Button("Apply now")) plugin.ApplyNow();
+        if (IconButton(FontAwesomeIcon.Play, "apply", "Apply matching rules now")) plugin.ApplyNow();
         ImGui.SameLine();
-        if (ImGui.Button("Ask")) plugin.OpenAsk();
+        if (IconButton(FontAwesomeIcon.Comment, "ask", "Open Dialog list")) plugin.OpenAsk();
         ImGui.SameLine();
-        if (ImGui.Button("Settings")) plugin.ToggleConfigUi();
+        if (IconButton(FontAwesomeIcon.Cog, "cfg", "Settings")) plugin.ToggleConfigUi();
         ImGui.SameLine();
         ImGui.TextDisabled(plugin.IsPaused ? "Paused" : plugin.Snapshot().Line());
         if (!string.IsNullOrEmpty(importMsg)) { ImGui.SameLine(); ImGui.TextDisabled(importMsg); }
@@ -59,13 +62,13 @@ public sealed partial class MainWindow : Window, IDisposable
 
         var avail = ImGui.GetContentRegionAvail();
         var leftW = Math.Clamp(avail.X * 0.30f, 240, 360);
-        ImGui.BeginChild("left", new Vector2(leftW, 0), true);
+        ImGui.BeginChild("left", new Vector2(leftW, avail.Y), true);
         DrawSelector(cfg);
         ImGui.EndChild();
         ImGui.SameLine();
-        ImGui.BeginChild("right", new Vector2(0, 0), true);
+        ImGui.BeginChild("right", new Vector2(0, avail.Y), true);
         var selected = cfg.Rules.Find(r => r.Id == selectedRuleId);
-        if (selected is null) ImGui.TextDisabled("Select a rule, or add one with + Rule.");
+        if (selected is null) ImGui.TextDisabled("Select a rule, or add one with +.");
         else DrawEditor(cfg, selected);
         ImGui.EndChild();
     }
@@ -74,8 +77,10 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         ImGui.SetNextItemWidth(-1);
         ImGui.InputTextWithHint("##filter", "Search", ref filter, 80);
-        var bar = ImGui.GetFrameHeight() + 8;
-        ImGui.BeginChild("tree", new Vector2(0, -bar), false);
+        var style = ImGui.GetStyle();
+        var footerH = ImGui.GetFrameHeightWithSpacing() * 2 + style.ItemSpacing.Y + style.WindowPadding.Y;
+        var remain = ImGui.GetContentRegionAvail();
+        ImGui.BeginChild("tree", new Vector2(remain.X, Math.Max(40, remain.Y - footerH)), false);
         DrawTree(cfg);
         ImGui.EndChild();
         DrawBottomBar(cfg);
@@ -165,7 +170,7 @@ public sealed partial class MainWindow : Window, IDisposable
     private bool DrawRuleRow(Configuration cfg, ThenRule rule)
     {
         ImGui.PushID(rule.Id);
-        Led(rule);
+        Bullet(rule);
         ImGui.SameLine();
         if (ImGui.Selectable(rule.Name, selectedRuleId == rule.Id))
         {
@@ -196,19 +201,19 @@ public sealed partial class MainWindow : Window, IDisposable
 
     private void DrawBottomBar(Configuration cfg)
     {
+        ImGui.Separator();
         ImGui.SetNextItemWidth(-1);
         ImGui.InputTextWithHint("##nn", "Name for new rule or folder", ref newName, 64);
-        var w = (ImGui.GetContentRegionAvail().X - 6) / 4;
-        if (ImGui.Button("+ Rule", new Vector2(w, 0))) AddRule(cfg, selectedFolder);
+        if (IconButton(FontAwesomeIcon.Plus, "nr", "New rule in the selected folder")) AddRule(cfg, selectedFolder);
         ImGui.SameLine();
-        if (ImGui.Button("+ Folder", new Vector2(w, 0))) AddFolder(cfg);
+        if (IconButton(FontAwesomeIcon.FolderPlus, "nf", "New folder")) AddFolder(cfg);
         ImGui.SameLine();
-        if (ImGui.Button("Paste", new Vector2(w, 0)))
+        if (IconButton(FontAwesomeIcon.Paste, "np", "Paste rule(s) from clipboard"))
             importMsg = plugin.TryImport(ImGui.GetClipboardText() ?? string.Empty, out var err) ? "Imported." : err;
         ImGui.SameLine();
         var canDel = selectedRuleId is not null && ImGui.GetIO().KeyShift;
         if (!canDel) ImGui.BeginDisabled();
-        if (ImGui.Button("Delete", new Vector2(w, 0)) && selectedRuleId is not null)
+        if (IconButton(FontAwesomeIcon.Trash, "nd", "Delete selected rule (hold Shift)") && selectedRuleId is not null)
         {
             cfg.Rules.RemoveAll(r => r.Id == selectedRuleId);
             selectedRuleId = null;
@@ -216,7 +221,7 @@ public sealed partial class MainWindow : Window, IDisposable
         }
         if (!canDel) ImGui.EndDisabled();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-            ImGui.SetTooltip("Select a rule, hold Shift, then Delete.");
+            ImGui.SetTooltip("Select a rule, hold Shift, then delete.");
     }
 
     private void AddRule(Configuration cfg, string folder)
@@ -227,6 +232,7 @@ public sealed partial class MainWindow : Window, IDisposable
             Enabled = true,
             Mode = ApplyMode.Off,
             Folder = folder,
+            DelaySec = cfg.DefaultDelaySec,
         };
         cfg.Rules.Add(rule);
         OpenRule(rule.Id);
@@ -264,13 +270,24 @@ public sealed partial class MainWindow : Window, IDisposable
         ImGui.EndDragDropTarget();
     }
 
-    private void Led(ThenRule rule)
+    private void Bullet(ThenRule rule)
     {
         Vector4 color = !rule.Enabled ? new Vector4(0.35f, 0.35f, 0.35f, 1)
             : plugin.Engine.JustApplied(rule.Id) ? new Vector4(0.92f, 0.62f, 0.16f, 1)
             : plugin.Engine.LastMatches.Any(r => r.Id == rule.Id) ? new Vector4(0.17f, 0.70f, 0.69f, 1)
             : new Vector4(0.55f, 0.55f, 0.55f, 1);
-        ImGui.ColorButton("##led", color, ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoDragDrop, new Vector2(10, 10));
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        ImGui.TextUnformatted("\u2022");
+        ImGui.PopStyleColor();
+    }
+
+    private static bool IconButton(FontAwesomeIcon icon, string id, string tip)
+    {
+        ImGui.PushFont(UiBuilder.IconFont);
+        var clicked = ImGui.Button($"{icon.ToIconString()}##{id}");
+        ImGui.PopFont();
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(tip);
+        return clicked;
     }
 
     private bool Visible(ThenRule rule)
