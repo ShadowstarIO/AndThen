@@ -5,7 +5,7 @@
 ---
 
 > Early development.
-> Version **0.0.1.4** testing.
+> Version **0.0.1.5** testing.
 
 ## What it does
 
@@ -23,6 +23,7 @@ Each THEN row has its own wait in milliseconds, then the action. Settings defaul
 * **Conditions** : pick a menu (You / Place / Party / Time / Target / Account) then the option. Housing expands to Ward / Plot / Room. World lists filter by Data Center.
 * **Live chips** : teal means that chip is true right now. Click a chip to edit it.
 * **THEN rows** : wait ms, action, options, up/down or drag to reorder. Editable in place.
+* **Penumbra** : search installed mods, store the current collection settings, apply them as temporary settings on you (or permanently into the collection). Reset clears AndThen temporary settings.
 * **Quiet** : Settings can block Auto and Dialog during cutscenes, combat, duty, and similar states. `/atn Name` and Test still run.
 * **Share** : JSON or `AT1.` from the rule. Settings can copy every rule at once. Imports start Off.
 * **Rising edge only** : a rule that stays true does not apply again.
