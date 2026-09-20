@@ -10,7 +10,6 @@ internal sealed class Engine
     private readonly HashSet<string> lastTrue = [];
     private readonly HashSet<string> asked = [];
     private readonly HashSet<string> firedStretch = [];
-    private readonly Dictionary<string, DateTime> holdSince = [];
     private readonly Queue<Pending> pending = new();
     private readonly Dictionary<string, DateTime> justApplied = [];
     private DateTime nextDue = DateTime.MinValue;
@@ -28,7 +27,6 @@ internal sealed class Engine
         lastTrue.Clear();
         asked.Clear();
         firedStretch.Clear();
-        holdSince.Clear();
         pending.Clear();
         LastMatches.Clear();
         DialogQueue.Clear();
@@ -61,14 +59,12 @@ internal sealed class Engine
             var match = ChipEval.Matches(rule, snap);
             if (!match)
             {
-                holdSince.Remove(rule.Id);
                 firedStretch.Remove(rule.Id);
                 continue;
             }
 
             LastMatches.Add(rule);
             seen.Add(rule.Id);
-            if (!holdSince.ContainsKey(rule.Id)) holdSince[rule.Id] = DateTime.Now;
 
             if (force)
             {
@@ -77,9 +73,6 @@ internal sealed class Engine
                 continue;
             }
 
-            var wait = Math.Max(0f, rule.DelaySec);
-            if (wait > 0 && (DateTime.Now - holdSince[rule.Id]).TotalSeconds < wait)
-                continue;
             if (firedStretch.Contains(rule.Id))
                 continue;
 
@@ -137,16 +130,12 @@ internal sealed class Engine
         DialogOpenNeeded = false;
     }
 
-    public IEnumerable<string> Preview(ThenRule rule) => rule.Then.Select(r => r.Label);
+    public IEnumerable<string> Preview(ThenRule rule) =>
+        rule.Then.Select(r => r.WaitMs > 0 ? $"{r.WaitMs} ms · {r.Label}" : r.Label);
 
     public IEnumerable<string> Why(ThenRule rule, GameSnapshot snap)
     {
         yield return ChipEval.Matches(rule, snap) ? "MATCH" : "no match";
-        if (rule.DelaySec > 0 && holdSince.TryGetValue(rule.Id, out var since))
-        {
-            var left = rule.DelaySec - (DateTime.Now - since).TotalSeconds;
-            if (left > 0) yield return $"WAIT {left:0.0}s";
-        }
         foreach (var chip in rule.AndChips)
             yield return $"IF {(ChipEval.ChipTrue(chip, snap) ? "Y" : "n")}  {chip.Label}";
         foreach (var chip in rule.OrChips)
@@ -177,7 +166,6 @@ internal sealed class Engine
         foreach (var rule in cfg.Rules)
         {
             if (!rule.Enabled) continue;
-            if (cfg.MutedFolders.Contains(rule.FolderKey)) continue;
             yield return rule;
         }
     }
@@ -205,20 +193,26 @@ internal sealed class Engine
             }
 
             var row = item.Rows[item.Index];
-            item.Index++;
-            if (row.Kind == ThenKind.Wait)
+            if (!item.Waited)
             {
-                var ms = row.WaitMs > 0 ? row.WaitMs : ParseWait(row.Value);
-                item.Due = DateTime.Now.AddMilliseconds(Math.Max(0, ms));
-                return;
+                item.Waited = true;
+                var ms = row.Kind == ThenKind.Wait
+                    ? (row.WaitMs > 0 ? row.WaitMs : ParseWait(row.Value))
+                    : Math.Max(row.WaitMs, 0);
+                if (row.Kind == ThenKind.Config && ms < 50) ms = 50;
+                if (row.Kind == ThenKind.Logout && ms < 500) ms = 500;
+                if (row.Kind == ThenKind.Exit && ms < 1000) ms = 1000;
+                if (ms > 0)
+                {
+                    item.Due = DateTime.Now.AddMilliseconds(ms);
+                    return;
+                }
             }
 
-            Actions.Run(row);
-            if (row.Kind == ThenKind.Config)
-            {
-                item.Due = DateTime.Now.AddMilliseconds(80);
-                return;
-            }
+            item.Index++;
+            item.Waited = false;
+            if (row.Kind != ThenKind.Wait)
+                Actions.Run(row);
         }
     }
 
@@ -241,5 +235,6 @@ internal sealed class Engine
         public List<ThenRow> Rows { get; init; } = [];
         public int Index { get; set; }
         public DateTime Due { get; set; }
+        public bool Waited { get; set; }
     }
 }
