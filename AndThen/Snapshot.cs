@@ -28,6 +28,7 @@ public sealed class GameSnapshot
     public int EorzeaHour { get; init; }
     public string Weekday { get; init; } = string.Empty;
     public string Weather { get; init; } = string.Empty;
+    public string OnlineStatus { get; init; } = string.Empty;
     public HashSet<string> States { get; init; } = [];
     public HashSet<string> Places { get; init; } = [];
 
@@ -63,6 +64,7 @@ public sealed class GameSnapshot
         var unix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var eorzeaHour = (int)((unix * 3600.0 / 175.0 / 3600.0) % 24);
         var places = PlacesOf(intended);
+        var online = player?.OnlineStatus.ValueNullable?.Name.ToString() ?? string.Empty;
 
         var states = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         Add(states, "LoggedIn", logged);
@@ -71,6 +73,8 @@ public sealed class GameSnapshot
         Add(states, "DutyReady", Flag(ConditionFlag.WaitingForDuty) || Flag(ConditionFlag.WaitingForDutyFinder));
         Add(states, "InQueue", Flag(ConditionFlag.InDutyQueue));
         Add(states, "Cutscene", Flag(ConditionFlag.WatchingCutscene) || Flag(ConditionFlag.WatchingCutscene78) || Flag(ConditionFlag.OccupiedInCutSceneEvent));
+        Add(states, "WatchingCutscene", Flag(ConditionFlag.WatchingCutscene) || Flag(ConditionFlag.WatchingCutscene78));
+        Add(states, "BoundByDuty", Flag(ConditionFlag.BoundByDuty) || Flag(ConditionFlag.BoundByDuty56) || Flag(ConditionFlag.BoundByDuty95));
         Add(states, "GPose", Flag(ConditionFlag.WatchingCutscene78) && !Flag(ConditionFlag.BoundByDuty));
         Add(states, "Mounted", Flag(ConditionFlag.Mounted) || Flag(ConditionFlag.RidingPillion));
         Add(states, "Flying", Flag(ConditionFlag.InFlight));
@@ -96,6 +100,8 @@ public sealed class GameSnapshot
         Add(states, "RolePlaying", Flag(ConditionFlag.RolePlaying));
         Add(states, "Sitting", Flag(ConditionFlag.InThatPosition));
         Add(states, "Event", Flag(ConditionFlag.OccupiedInEvent) || Flag(ConditionFlag.OccupiedInQuestEvent) || Flag(ConditionFlag.OccupiedSummoningBell));
+        Add(states, "Talking", Flag(ConditionFlag.OccupiedInEvent) || Flag(ConditionFlag.OccupiedInQuestEvent));
+        Add(states, "UsingItem", Flag(ConditionFlag.Occupied39));
         Add(states, "DeepDungeon", Flag(ConditionFlag.InDeepDungeon) || places.Contains("DeepDungeon"));
 
         return new GameSnapshot
@@ -119,6 +125,7 @@ public sealed class GameSnapshot
             EorzeaHour = eorzeaHour,
             Weekday = now.DayOfWeek.ToString(),
             Weather = ReadWeather(),
+            OnlineStatus = online,
             States = states,
             Places = places,
         };
@@ -126,7 +133,7 @@ public sealed class GameSnapshot
 
     public string Line() =>
         LoggedIn
-            ? $"{JobAbbr} · {Group} · {Place} · {WorldName} · {TerritoryName} · ET {EorzeaHour:00} · {Weather} · tgt {Target}"
+            ? $"{JobAbbr} · {Group} · {Place} · {WorldName} · {TerritoryName} · ET {EorzeaHour:00} · {Weather} · {OnlineStatus} · tgt {Target}"
             : "Not logged in";
 
     public bool HasPlace(string value) => Places.Contains(value);
@@ -229,7 +236,7 @@ public sealed class GameSnapshot
 
     private static string PrimaryPlace(HashSet<string> places)
     {
-        foreach (var key in new[] { "PvP", "DeepDungeon", "Field", "Housing", "Inn", "Town", "GoldSaucer", "Indoor", "Overworld", "Sanctuary" })
+        foreach (var key in new[] { "PvP", "DeepDungeon", "Field", "Housing", "Inn", "Town", "GoldSaucer", "Indoor", "Overworld", "Sanctuary", "Dungeon", "Trial", "Raid", "Alliance" })
             if (places.Contains(key)) return key;
         return "Overworld";
     }
