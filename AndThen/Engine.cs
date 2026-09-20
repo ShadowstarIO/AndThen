@@ -9,6 +9,8 @@ internal sealed class Engine
     private readonly Configuration cfg;
     private readonly HashSet<string> lastTrue = [];
     private readonly HashSet<string> asked = [];
+    private readonly HashSet<string> firedStretch = [];
+    private readonly Dictionary<string, DateTime> holdSince = [];
     private readonly Queue<Pending> pending = new();
     private readonly Dictionary<string, DateTime> justApplied = [];
     private DateTime nextDue = DateTime.MinValue;
@@ -25,6 +27,8 @@ internal sealed class Engine
     {
         lastTrue.Clear();
         asked.Clear();
+        firedStretch.Clear();
+        holdSince.Clear();
         pending.Clear();
         LastMatches.Clear();
         DialogQueue.Clear();
@@ -48,27 +52,44 @@ internal sealed class Engine
         LastSnap = snap;
         LastMatches.Clear();
 
-        var quietAuto = cfg.QuietInCutscene && snap.States.Contains("Cutscene");
+        var quiet = Quiet(snap);
         var seen = new HashSet<string>();
         var dialogNow = new List<ThenRule>();
 
         foreach (var rule in LiveRules())
         {
             var match = ChipEval.Matches(rule, snap);
-            if (!match) continue;
+            if (!match)
+            {
+                holdSince.Remove(rule.Id);
+                firedStretch.Remove(rule.Id);
+                continue;
+            }
+
             LastMatches.Add(rule);
             seen.Add(rule.Id);
-            var rising = force || !lastTrue.Contains(rule.Id);
-            if (!rising) continue;
+            if (!holdSince.ContainsKey(rule.Id)) holdSince[rule.Id] = DateTime.Now;
 
             if (force)
             {
                 Enqueue(rule, "apply");
+                firedStretch.Add(rule.Id);
                 continue;
             }
 
-            if (rule.Mode == ApplyMode.Auto && !quietAuto)
+            var wait = Math.Max(0f, rule.DelaySec);
+            if (wait > 0 && (DateTime.Now - holdSince[rule.Id]).TotalSeconds < wait)
+                continue;
+            if (firedStretch.Contains(rule.Id))
+                continue;
+
+            if (quiet) continue;
+
+            if (rule.Mode == ApplyMode.Auto)
+            {
                 Enqueue(rule, "auto");
+                firedStretch.Add(rule.Id);
+            }
             else if (rule.Mode == ApplyMode.Dialog)
                 dialogNow.Add(rule);
         }
@@ -103,12 +124,15 @@ internal sealed class Engine
     public void AcceptDialog(ThenRule rule)
     {
         Enqueue(rule, "dialog");
+        firedStretch.Add(rule.Id);
         DialogQueue.RemoveAll(r => r.Id == rule.Id);
         DrainPending();
     }
 
     public void DismissDialog()
     {
+        foreach (var rule in DialogQueue)
+            firedStretch.Add(rule.Id);
         DialogQueue.Clear();
         DialogOpenNeeded = false;
     }
@@ -118,6 +142,11 @@ internal sealed class Engine
     public IEnumerable<string> Why(ThenRule rule, GameSnapshot snap)
     {
         yield return ChipEval.Matches(rule, snap) ? "MATCH" : "no match";
+        if (rule.DelaySec > 0 && holdSince.TryGetValue(rule.Id, out var since))
+        {
+            var left = rule.DelaySec - (DateTime.Now - since).TotalSeconds;
+            if (left > 0) yield return $"WAIT {left:0.0}s";
+        }
         foreach (var chip in rule.AndChips)
             yield return $"IF {(ChipEval.ChipTrue(chip, snap) ? "Y" : "n")}  {chip.Label}";
         foreach (var chip in rule.OrChips)
@@ -126,6 +155,21 @@ internal sealed class Engine
             yield return $"NOT {(ChipEval.ChipTrue(chip, snap) ? "Y" : "n")}  {chip.Label}";
         if (rule.AndChips.Count + rule.OrChips.Count + rule.NotChips.Count == 0)
             yield return "(no chips — /atn Name still runs THEN)";
+    }
+
+    private bool Quiet(GameSnapshot snap)
+    {
+        if (cfg.QuietInCutscene && (snap.States.Contains("Cutscene") || snap.States.Contains("WatchingCutscene"))) return true;
+        if (cfg.QuietInCombat && snap.States.Contains("InCombat")) return true;
+        if (cfg.QuietInDuty && snap.States.Contains("InDuty")) return true;
+        if (cfg.QuietBetweenAreas && snap.States.Contains("BetweenAreas")) return true;
+        if (cfg.QuietWhenOccupied && snap.States.Contains("Occupied")) return true;
+        if (cfg.QuietInGPose && snap.States.Contains("GPose")) return true;
+        if (cfg.QuietWhenDead && snap.States.Contains("Dead")) return true;
+        if (cfg.QuietWhenCrafting && snap.States.Contains("Crafting")) return true;
+        if (cfg.QuietWhenPerforming && snap.States.Contains("Performing")) return true;
+        if (cfg.QuietWhenTrading && snap.States.Contains("Trade")) return true;
+        return false;
     }
 
     private IEnumerable<ThenRule> LiveRules()
