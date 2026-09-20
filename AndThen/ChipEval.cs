@@ -55,6 +55,8 @@ internal static class ChipEval
             ChipKind.Nearby => NearbyOk(value, snap.Nearby),
             ChipKind.Place => snap.HasPlace(value),
             ChipKind.Target => TargetOk(value, snap.Target),
+            ChipKind.OnlineStatus => snap.OnlineStatus.Equals(value, StringComparison.OrdinalIgnoreCase)
+                || snap.OnlineStatus.Contains(value, StringComparison.OrdinalIgnoreCase),
             _ => false,
         };
     }
