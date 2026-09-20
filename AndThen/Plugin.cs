@@ -37,6 +37,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly MainWindow mainWindow;
     private readonly ConfigWindow configWindow;
     private readonly DialogWindow dialogWindow;
+    private readonly PickerWindow pickerWindow;
     private bool paused;
     private DateTime? pauseUntil;
 
@@ -50,9 +51,11 @@ public sealed class Plugin : IDalamudPlugin
         mainWindow = new MainWindow(this);
         configWindow = new ConfigWindow(this);
         dialogWindow = new DialogWindow(this);
+        pickerWindow = new PickerWindow();
         WindowSystem.AddWindow(mainWindow);
         WindowSystem.AddWindow(configWindow);
         WindowSystem.AddWindow(dialogWindow);
+        WindowSystem.AddWindow(pickerWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand) { HelpMessage = "AndThen. /atn help" });
         try { CommandManager.AddHandler(CommandAlias, new CommandInfo(OnCommand) { HelpMessage = "Alias for /andthen." }); }
@@ -86,6 +89,8 @@ public sealed class Plugin : IDalamudPlugin
     public void ToggleConfigUi() => configWindow.Toggle();
     public void ToggleMainUi() => mainWindow.Toggle();
     public void OpenAsk() { dialogWindow.IsOpen = true; }
+    public void OpenPicker(string title, string[] items, Action<string> onPick, string current = "") =>
+        pickerWindow.Open(title, items, onPick, current);
     public GameSnapshot Snapshot() => Engine.LastSnap.LoggedIn ? Engine.LastSnap : GameSnapshot.Capture();
     public System.Collections.Generic.IReadOnlyList<ThenRule> CurrentMatches() => Engine.LastMatches;
     public static bool CharacterReady =>
