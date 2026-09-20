@@ -99,6 +99,14 @@ public sealed partial class MainWindow
         waitMs = 250;
         configSection = 0;
         configGroup = "Graphics";
+        penEnabled = true;
+        penInherit = false;
+        penPermanent = false;
+        penPriority = 0;
+        penDir = string.Empty;
+        penExtra = string.Empty;
+        penSearch = string.Empty;
+        penGroups = 0;
     }
 
     private void DrawChipPicker()
@@ -260,6 +268,16 @@ public sealed partial class MainWindow
             ImGui.SetNextItemWidth(320);
             ImGui.InputTextWithHint("##nv", "Line to print in chat", ref thenValue, 120);
         }
+        else if (kind == ThenKind.Logout || kind == ThenKind.Exit)
+        {
+            ImGui.TextDisabled(kind == ThenKind.Logout
+                ? "Sends /logout. Minimum wait 500 ms when the stack runs."
+                : "Closes the game process. Minimum wait 1000 ms when the stack runs.");
+        }
+        else if (kind == ThenKind.PenumbraMod)
+            DrawPenumbraModDraft();
+        else if (kind == ThenKind.PenumbraReset)
+            DrawPenumbraResetDraft();
         else
         {
             ImGui.SetNextItemWidth(120);
@@ -311,6 +329,113 @@ public sealed partial class MainWindow
         }
     }
 
+    private void DrawPenumbraModDraft()
+    {
+        if (!PenumbraIpc.Available)
+        {
+            ImGui.TextDisabled("Penumbra is not available. Install and enable it, then reopen this window.");
+            return;
+        }
+
+        ImGui.SetNextItemWidth(280);
+        ImGui.InputTextWithHint("##pmod", "Search installed mods", ref penSearch, 80);
+        ImGui.SameLine();
+        if (ImGui.Button("Browse##pmod"))
+            plugin.OpenPicker("Penumbra mods", PenumbraIpc.Labels(), PickPenumbra, penDir);
+
+        var hits = PenumbraIpc.Mods()
+            .Where(m => penSearch.Length == 0
+                || m.Name.Contains(penSearch, StringComparison.OrdinalIgnoreCase)
+                || m.Dir.Contains(penSearch, StringComparison.OrdinalIgnoreCase))
+            .Take(8)
+            .ToArray();
+        foreach (var hit in hits)
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton(hit.Name)) PickPenumbraDir(hit.Dir, hit.Name);
+        }
+
+        if (penDir.Length == 0)
+        {
+            ImGui.TextDisabled("Pick a mod, then store its current collection settings.");
+            return;
+        }
+
+        ImGui.TextUnformatted(thenValue);
+        ImGui.SameLine();
+        ImGui.TextDisabled(penDir);
+        if (ImGui.Checkbox("Enabled", ref penEnabled)) { }
+        ImGui.SameLine();
+        if (ImGui.Checkbox("Inherit", ref penInherit)) { }
+        ImGui.SameLine();
+        if (ImGui.Checkbox("Permanent", ref penPermanent)) { }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Off = temporary settings on you (cleared on reset or logout).\nOn = write into the current collection.");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(80);
+        ImGui.InputInt("Priority", ref penPriority);
+        if (ImGui.Button("Use current settings"))
+            CapturePenumbra();
+        ImGui.SameLine();
+        ImGui.TextDisabled(penGroups == 0 ? "No option groups stored yet." : penGroups + " option group(s) stored.");
+    }
+
+    private void DrawPenumbraResetDraft()
+    {
+        if (!PenumbraIpc.Available)
+        {
+            ImGui.TextDisabled("Penumbra is not available.");
+            return;
+        }
+
+        ImGui.TextDisabled("Empty = clear every AndThen temporary setting on you. Or pick one mod.");
+        ImGui.SetNextItemWidth(280);
+        ImGui.InputTextWithHint("##preset", "Optional mod search", ref penSearch, 80);
+        ImGui.SameLine();
+        if (ImGui.Button("Browse##preset"))
+            plugin.OpenPicker("Penumbra mods", PenumbraIpc.Labels(), PickPenumbra, penDir);
+        if (penDir.Length > 0)
+            ImGui.TextDisabled("Will reset temp settings for " + (string.IsNullOrWhiteSpace(thenValue) ? penDir : thenValue));
+        else
+            ImGui.TextDisabled("Will reset all AndThen temporary settings.");
+        if (penDir.Length > 0 && ImGui.SmallButton("Clear pick"))
+        {
+            penDir = string.Empty;
+            thenValue = string.Empty;
+        }
+    }
+
+    private void PickPenumbra(string label)
+    {
+        if (!PenumbraIpc.TryParseLabel(label, out var dir, out var name)) return;
+        PickPenumbraDir(dir, name);
+    }
+
+    private void PickPenumbraDir(string dir, string name)
+    {
+        penDir = dir;
+        thenValue = name;
+        penSearch = name;
+        CapturePenumbra();
+    }
+
+    private void CapturePenumbra()
+    {
+        if (penDir.Length == 0) return;
+        if (!PenumbraIpc.TryRead(penDir, thenValue, out var snap))
+        {
+            importMsg = "Could not read that mod from Penumbra.";
+            return;
+        }
+        penEnabled = snap.Enabled;
+        penInherit = snap.Inherit;
+        penPriority = snap.Priority;
+        penGroups = snap.GroupCount;
+        penExtra = PenumbraIpc.Pack(snap);
+        if (string.IsNullOrWhiteSpace(thenValue)) thenValue = snap.Name;
+        importMsg = "Stored current settings for " + thenValue + ".";
+    }
+
     private void AddThen(Configuration cfg, ThenRule rule)
     {
         var kind = (ThenKind)thenKind;
@@ -319,6 +444,27 @@ public sealed partial class MainWindow
             ThenKind.Wait => new ThenRow { Kind = ThenKind.Wait, WaitMs = Math.Max(0, waitMs), Value = waitMs.ToString() },
             ThenKind.Status => new ThenRow { Kind = ThenKind.Status, Value = string.IsNullOrWhiteSpace(thenValue) ? "Busy" : thenValue.Trim() },
             ThenKind.Notify => new ThenRow { Kind = ThenKind.Notify, Value = string.IsNullOrWhiteSpace(thenValue) ? rule.Notes : thenValue.Trim() },
+            ThenKind.Logout => new ThenRow { Kind = ThenKind.Logout, WaitMs = 500 },
+            ThenKind.Exit => new ThenRow { Kind = ThenKind.Exit, WaitMs = 1000 },
+            ThenKind.PenumbraMod => new ThenRow
+            {
+                Kind = ThenKind.PenumbraMod,
+                Option = penDir,
+                Value = thenValue.Trim(),
+                Flag = penEnabled,
+                Inherit = penInherit,
+                Permanent = penPermanent,
+                Number = penPriority,
+                Extra = penExtra,
+                WaitMs = 50,
+            },
+            ThenKind.PenumbraReset => new ThenRow
+            {
+                Kind = ThenKind.PenumbraReset,
+                Option = penDir,
+                Value = thenValue.Trim(),
+                WaitMs = 50,
+            },
             ThenKind.Config => new ThenRow
             {
                 Kind = ThenKind.Config,
