@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Dalamud.Game.Config;
 
 namespace AndThen;
@@ -13,9 +14,25 @@ internal static class Actions
             ThenKind.Status => RunStatus(row.Value),
             ThenKind.Config => RunConfig(row),
             ThenKind.Notify => RunNotify(row.Value),
+            ThenKind.Logout => ChatSender.TrySend("/logout"),
+            ThenKind.Exit => ExitGame(),
             ThenKind.Wait => true,
             _ => false,
         };
+    }
+
+    private static bool ExitGame()
+    {
+        try
+        {
+            Process.GetCurrentProcess().Kill();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Warning(ex, "Close Game failed");
+            return false;
+        }
     }
 
     private static bool RunNotify(string value)
