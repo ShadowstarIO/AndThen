@@ -35,6 +35,8 @@ public enum ThenKind
     Notify = 4,
     Logout = 5,
     Exit = 6,
+    PenumbraMod = 7,
+    PenumbraReset = 8,
 }
 
 public enum ApplyMode
@@ -89,6 +91,11 @@ public class ThenRow
     public string Option { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
     public int WaitMs { get; set; }
+    public bool Flag { get; set; } = true;
+    public bool Inherit { get; set; }
+    public bool Permanent { get; set; }
+    public int Number { get; set; }
+    public string Extra { get; set; } = string.Empty;
 
     public string Label => Kind switch
     {
@@ -98,8 +105,19 @@ public class ThenRow
         ThenKind.Notify => string.IsNullOrWhiteSpace(Value) ? "Chat Notice" : $"Say {Value}",
         ThenKind.Logout => "Log Out",
         ThenKind.Exit => "Close Game",
+        ThenKind.PenumbraMod => PenumbraLabel(),
+        ThenKind.PenumbraReset => string.IsNullOrWhiteSpace(Option) ? "Penumbra Reset Temp" : $"Penumbra Reset {Value}",
         _ => string.IsNullOrWhiteSpace(Value) ? "/command" : Value,
     };
+
+    private string PenumbraLabel()
+    {
+        var name = string.IsNullOrWhiteSpace(Value) ? Option : Value;
+        if (string.IsNullOrWhiteSpace(name)) return "Penumbra Mod";
+        var how = Permanent ? "set" : "temp";
+        var state = Inherit ? "inherit" : Flag ? "on" : "off";
+        return $"Penumbra {how} {name} {state}";
+    }
 }
 
 [Serializable]

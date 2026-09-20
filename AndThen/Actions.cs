@@ -16,6 +16,8 @@ internal static class Actions
             ThenKind.Notify => RunNotify(row.Value),
             ThenKind.Logout => ChatSender.TrySend("/logout"),
             ThenKind.Exit => ExitGame(),
+            ThenKind.PenumbraMod => PenumbraIpc.Apply(row),
+            ThenKind.PenumbraReset => PenumbraIpc.Reset(row),
             ThenKind.Wait => true,
             _ => false,
         };
