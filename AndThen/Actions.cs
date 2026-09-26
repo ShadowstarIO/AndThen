@@ -54,16 +54,26 @@ internal static class Actions
     {
         var option = (row.Option ?? string.Empty).Trim();
         var raw = (row.Value ?? string.Empty).Trim();
-        if (option.Length == 0) return false;
+        if (option.Length == 0 || raw.Length == 0) return false;
         try
         {
+            if (!SettingGuide.TryCoerce(option, raw, out var number, out var floating, out var isFloat))
+            {
+                Plugin.Log.Warning("Config value not recognized: {Option}={Value}", option, raw);
+                return false;
+            }
+
             if (row.Section == ConfigSection.Ui)
             {
                 if (!Enum.TryParse<UiConfigOption>(option, true, out var ui)) return false;
-                return SetUi(ui, raw);
+                Write(ui, number, floating, isFloat);
+                return true;
             }
+
             if (!Enum.TryParse<SystemConfigOption>(option, true, out var sys)) return false;
-            return SetSys(sys, raw);
+            Write(sys, number, floating, isFloat);
+            WriteTwin(sys, number, floating, isFloat);
+            return true;
         }
         catch (Exception ex)
         {
@@ -72,43 +82,30 @@ internal static class Actions
         }
     }
 
-    private static bool SetSys(SystemConfigOption option, string raw)
+    private static void Write(SystemConfigOption option, uint number, float floating, bool isFloat)
     {
-        if (IsOnOff(raw, out var on)) { Plugin.GameConfig.Set(option, on); return true; }
-        if (uint.TryParse(raw, out var n)) { Plugin.GameConfig.Set(option, n); return true; }
-        if (float.TryParse(raw, out var f)) { Plugin.GameConfig.Set(option, f); return true; }
-        Plugin.GameConfig.Set(option, MapNamed(raw));
-        return true;
+        if (isFloat) Plugin.GameConfig.Set(option, floating);
+        else Plugin.GameConfig.Set(option, number);
     }
 
-    private static bool SetUi(UiConfigOption option, string raw)
+    private static void Write(UiConfigOption option, uint number, float floating, bool isFloat)
     {
-        if (IsOnOff(raw, out var on)) { Plugin.GameConfig.Set(option, on); return true; }
-        if (uint.TryParse(raw, out var n)) { Plugin.GameConfig.Set(option, n); return true; }
-        if (float.TryParse(raw, out var f)) { Plugin.GameConfig.Set(option, f); return true; }
-        Plugin.GameConfig.Set(option, MapNamed(raw));
-        return true;
+        if (isFloat) Plugin.GameConfig.Set(option, floating);
+        else Plugin.GameConfig.Set(option, number);
     }
 
-    private static bool IsOnOff(string raw, out bool on)
+    private static void WriteTwin(SystemConfigOption option, uint number, float floating, bool isFloat)
     {
-        on = raw.Equals("on", StringComparison.OrdinalIgnoreCase)
-            || raw.Equals("true", StringComparison.OrdinalIgnoreCase)
-            || raw.Equals("yes", StringComparison.OrdinalIgnoreCase)
-            || raw == "1";
-        return on
-            || raw.Equals("off", StringComparison.OrdinalIgnoreCase)
-            || raw.Equals("false", StringComparison.OrdinalIgnoreCase)
-            || raw.Equals("no", StringComparison.OrdinalIgnoreCase)
-            || raw == "0";
+        var name = option.ToString();
+        var otherName = name.EndsWith("_DX11", StringComparison.Ordinal) ? name[..^5] : name + "_DX11";
+        if (!Enum.TryParse<SystemConfigOption>(otherName, out var other) || other.Equals(option)) return;
+        try
+        {
+            Write(other, number, floating, isFloat);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Warning(ex, "Config twin failed: {Option}", otherName);
+        }
     }
-
-    private static uint MapNamed(string raw) => raw.ToLowerInvariant() switch
-    {
-        "none" or "off" or "max" or "unlimited" or "all" => 0u,
-        "limited" or "display" or "monitor" => 1u,
-        "never" => 3u,
-        "always" => 0u,
-        _ => 0u,
-    };
 }

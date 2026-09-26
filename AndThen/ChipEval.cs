@@ -57,6 +57,10 @@ internal static class ChipEval
             ChipKind.Target => TargetOk(value, snap.Target),
             ChipKind.OnlineStatus => snap.OnlineStatus.Equals(value, StringComparison.OrdinalIgnoreCase)
                 || snap.OnlineStatus.Contains(value, StringComparison.OrdinalIgnoreCase),
+            ChipKind.Account => AccountOk(value, snap),
+            ChipKind.Housing => Housing.Matches(value, snap.Address),
+            ChipKind.Mount => MountOk(value, snap),
+            ChipKind.Level => Compare(value, snap.Level),
             _ => false,
         };
     }
@@ -111,6 +115,24 @@ internal static class ChipEval
         "crowded" => n > 8,
         _ => Compare(value, n),
     };
+
+    private static bool AccountOk(string value, GameSnapshot snap)
+    {
+        if (value.Equals("home", StringComparison.OrdinalIgnoreCase)) return snap.Account == "Home";
+        if (value.Equals("visiting", StringComparison.OrdinalIgnoreCase))
+            return snap.Account == "Visiting";
+        return snap.Account.Equals(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MountOk(string value, GameSnapshot snap)
+    {
+        var mounted = snap.States.Contains("Mounted");
+        var flying = snap.States.Contains("Flying");
+        if (value.Equals("none", StringComparison.OrdinalIgnoreCase)) return !mounted;
+        if (value.Equals("any", StringComparison.OrdinalIgnoreCase)) return mounted;
+        if (value.Equals("flying", StringComparison.OrdinalIgnoreCase)) return flying;
+        return mounted && snap.Mount.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool TargetOk(string value, string target)
     {

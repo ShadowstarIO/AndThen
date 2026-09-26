@@ -50,13 +50,15 @@ internal static class Catalog
         "Gloom", "Umbral Wind", "Umbral Static", "Moon Dust", "Astromagnetic Storms",
     ];
     public static readonly string[] ValuesOnOff = ["on", "off"];
-    public static readonly string[] ConfigGroups = ["Sound", "Nameplates", "Battle effects", "Graphics", "Camera", "Display", "Other"];
+    public static readonly string[] Accounts = ["Home", "Visiting"];
+    public static readonly string[] Mounts = ["none", "any", "flying"];
+    public static readonly string[] ConfigGroups = SettingGuide.GroupNames;
 
     public static readonly string[] ChipKinds =
     [
         "State", "Job", "Role", "Zone", "World", "Data Center", "Party size",
         "Duty", "Group size", "Time", "Weather", "Nearby", "Place", "Target",
-        "Online status",
+        "Online status", "Account", "Housing", "Mount", "Level",
     ];
 
     public static readonly string[] ThenKinds =
@@ -82,6 +84,8 @@ internal static class Catalog
         ChipKind.Weather => Weathers,
         ChipKind.DataCenter => DataCenters,
         ChipKind.OnlineStatus => Statuses,
+        ChipKind.Account => Accounts,
+        ChipKind.Mount => Mounts,
         ChipKind.Zone => ZoneNames(),
         ChipKind.World => WorldNames(),
         _ => [],
@@ -89,7 +93,7 @@ internal static class Catalog
 
     public static bool UsesList(ChipKind kind) => OptionsFor(kind).Length > 0;
     public static bool UsesCustom(ChipKind kind) =>
-        kind is ChipKind.Zone or ChipKind.World or ChipKind.Weather or ChipKind.PartySize or ChipKind.Time or ChipKind.Nearby;
+        kind is ChipKind.Zone or ChipKind.World or ChipKind.Weather or ChipKind.PartySize or ChipKind.Time or ChipKind.Nearby or ChipKind.Mount or ChipKind.Level;
     public static bool LongList(ChipKind kind) =>
         kind is ChipKind.Zone or ChipKind.World or ChipKind.Weather or ChipKind.State or ChipKind.Job;
 
@@ -101,6 +105,9 @@ internal static class Catalog
         ChipKind.PartySize => "Number of party members",
         ChipKind.Time => "Or type et>=18 / lt>=20",
         ChipKind.Nearby => "empty / few / crowded or >=3",
+        ChipKind.Mount => "none, any, flying, or a mount name",
+        ChipKind.Level => "Or type >=90",
+        ChipKind.Housing => "District, ward, plot, subdivision",
         _ => "Value",
     };
 
@@ -121,6 +128,10 @@ internal static class Catalog
         ChipKind.Place => snap.Place,
         ChipKind.Target => snap.Target,
         ChipKind.OnlineStatus => snap.OnlineStatus,
+        ChipKind.Account => snap.Account,
+        ChipKind.Housing => Housing.Encode(snap.Address),
+        ChipKind.Mount => snap.States.Contains("Flying") ? "flying" : snap.States.Contains("Mounted") ? "any" : "none",
+        ChipKind.Level => snap.Level.ToString(),
         _ => string.Empty,
     };
 
@@ -139,16 +150,7 @@ internal static class Catalog
         _ => value,
     };
 
-    public static string GroupOf(string option)
-    {
-        if (Starts(option, "Sound", "IsSnd", "IsSound")) return "Sound";
-        if (Starts(option, "NamePlate", "Nameplate")) return "Nameplates";
-        if (Starts(option, "BattleEffect")) return "Battle effects";
-        if (Starts(option, "Fps", "FPS", "Grass", "Shadow", "Texture", "Graphics", "SSAO", "AntiAlias", "Gamma", "Lod", "Physics", "Reflection", "Parallax", "Tessellation", "Glare", "Vignet", "Distortion", "DepthOfField", "RadialBlur")) return "Graphics";
-        if (Starts(option, "Camera", "Zoom", "FirstPerson", "ThirdPerson", "Lockon", "MouseOpe", "MouseAuto")) return "Camera";
-        if (Starts(option, "Display", "Ui", "HUD", "Hud", "Screen")) return "Display";
-        return "Other";
-    }
+    public static string GroupOf(string option) => SettingGuide.GroupOf(option);
 
     public static IEnumerable<string> InGroup(IEnumerable<string> names, string group) =>
         names.Where(n => GroupOf(n).Equals(group, StringComparison.OrdinalIgnoreCase));
@@ -157,7 +159,7 @@ internal static class Catalog
     {
         query = (query ?? string.Empty).Trim();
         if (query.Length == 0) return names;
-        return names.Where(n => n.Contains(query, StringComparison.OrdinalIgnoreCase) || GroupOf(n).Contains(query, StringComparison.OrdinalIgnoreCase));
+        return names.Where(n => n.Contains(query, StringComparison.OrdinalIgnoreCase) || SettingGuide.SearchBlob(n).Contains(query, StringComparison.OrdinalIgnoreCase));
     }
 
     public static string CurrentSetting(ConfigSection section, string option)
@@ -170,12 +172,14 @@ internal static class Catalog
             {
                 if (!Enum.TryParse<UiConfigOption>(option, true, out var ui)) return string.Empty;
                 if (Plugin.GameConfig.TryGet(ui, out uint n)) return n.ToString();
-                if (Plugin.GameConfig.TryGet(ui, out bool on)) return on ? "on" : "off";
+                if (Plugin.GameConfig.TryGet(ui, out float f)) return f.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (Plugin.GameConfig.TryGet(ui, out bool on)) return on ? "1" : "0";
                 return string.Empty;
             }
             if (!Enum.TryParse<SystemConfigOption>(option, true, out var sys)) return string.Empty;
             if (Plugin.GameConfig.TryGet(sys, out uint sn)) return sn.ToString();
-            if (Plugin.GameConfig.TryGet(sys, out bool son)) return son ? "on" : "off";
+            if (Plugin.GameConfig.TryGet(sys, out float sf)) return sf.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (Plugin.GameConfig.TryGet(sys, out bool son)) return son ? "1" : "0";
         }
         catch { /* config not ready */ }
         return string.Empty;
@@ -213,7 +217,4 @@ internal static class Catalog
         }
         catch { return []; }
     }
-
-    private static bool Starts(string option, params string[] prefixes) =>
-        prefixes.Any(p => option.StartsWith(p, StringComparison.OrdinalIgnoreCase));
 }

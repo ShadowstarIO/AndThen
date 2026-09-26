@@ -76,7 +76,7 @@ public class RuleChip
         ChipKind.Target => $"Target {Value}",
         ChipKind.OnlineStatus => $"Status {Value}",
         ChipKind.Account => $"Account {Value}",
-        ChipKind.Housing => $"Housing {Value}",
+        ChipKind.Housing => Housing.Format(Value),
         ChipKind.Mount => $"Mount {Value}",
         ChipKind.Level => $"Level {Value}",
         _ => Value,
@@ -101,7 +101,7 @@ public class ThenRow
     {
         ThenKind.Wait => WaitMs <= 0 ? "Wait" : $"Wait {WaitMs} ms",
         ThenKind.Status => $"Online Status {Value}",
-        ThenKind.Config => string.IsNullOrWhiteSpace(Option) ? "Game Setting" : $"{Option} = {Value}",
+        ThenKind.Config => SettingGuide.RowLabel(Option, Value),
         ThenKind.Notify => string.IsNullOrWhiteSpace(Value) ? "Chat Notice" : $"Say {Value}",
         ThenKind.Logout => "Log Out",
         ThenKind.Exit => "Close Game",

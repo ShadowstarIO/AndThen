@@ -88,6 +88,16 @@ public sealed partial class MainWindow
         chipValue = string.Empty;
         partyCmp = ">=";
         partyN = 4;
+        mountName = string.Empty;
+        mountPick = 0;
+        levelCmp = ">=";
+        levelN = 90;
+        houseKind = 0;
+        houseZone = 0;
+        houseSub = false;
+        houseWard = 0;
+        housePlot = 0;
+        houseRoom = 0;
     }
 
     private void ClearThenDraft()
@@ -140,6 +150,34 @@ public sealed partial class MainWindow
             partyN = Math.Clamp(partyN, 0, 24);
             chipValue = partyCmp == "=" ? partyN.ToString() : partyCmp + partyN;
             CurrentButton(current, v => { chipValue = v; if (int.TryParse(v, out var n)) partyN = n; });
+            return;
+        }
+
+        if (kind == ChipKind.Level)
+        {
+            ImGui.SetNextItemWidth(80);
+            var cmp = Array.IndexOf(Catalog.Compare, levelCmp);
+            if (cmp < 0) cmp = 0;
+            if (ImGui.Combo("Compare", ref cmp, string.Join('\0', Catalog.Compare) + "\0"))
+                levelCmp = Catalog.Compare[cmp];
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(80);
+            ImGui.InputInt("Level", ref levelN);
+            levelN = Math.Clamp(levelN, 1, 100);
+            chipValue = levelCmp == "=" ? levelN.ToString() : levelCmp + levelN;
+            CurrentButton(current, v => { chipValue = v; if (int.TryParse(v, out var n)) levelN = n; });
+            return;
+        }
+
+        if (kind == ChipKind.Mount)
+        {
+            DrawMountDraft(snap);
+            return;
+        }
+
+        if (kind == ChipKind.Housing)
+        {
+            DrawHousingDraft(snap);
             return;
         }
 
@@ -279,54 +317,226 @@ public sealed partial class MainWindow
         else if (kind == ThenKind.PenumbraReset)
             DrawPenumbraResetDraft();
         else
+            DrawConfigDraft();
+    }
+
+    private void DrawMountDraft(GameSnapshot snap)
+    {
+        ImGui.SetNextItemWidth(160);
+        if (ImGui.Combo("Mount", ref mountPick, "Not mounted\0Any mount\0Flying\0"))
+            mountName = string.Empty;
+        mountPick = Math.Clamp(mountPick, 0, 2);
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(180);
+        ImGui.InputTextWithHint("##mountname", "Or a mount name", ref mountName, 48);
+        chipValue = mountName.Trim().Length > 0 ? mountName.Trim() : Catalog.Mounts[mountPick];
+        var current = snap.Mount != "none" ? snap.Mount : snap.States.Contains("Mounted") ? "any" : "none";
+        CurrentButton(current, v =>
         {
-            ImGui.SetNextItemWidth(120);
-            if (ImGui.Combo("Section", ref configSection, "System\0UI\0"))
-            {
-                pickedOption = string.Empty;
-                optionQuery = string.Empty;
-                optionPick = 0;
-            }
-            var names = configSection == 0 ? Catalog.SystemOptions : Catalog.UiOptions;
-            var gIdx = Array.IndexOf(Catalog.ConfigGroups, configGroup);
-            if (gIdx < 0) gIdx = 0;
+            mountName = v is "none" or "any" or "flying" ? string.Empty : v;
+            mountPick = v switch { "any" => 1, "flying" => 2, "none" => 0, _ => mountPick };
+            chipValue = v;
+        });
+    }
+
+    private void DrawHousingDraft(GameSnapshot snap)
+    {
+        ImGui.SetNextItemWidth(140);
+        ImGui.Combo("Place", ref houseKind, "House\0Apartment\0Chamber\0");
+        houseKind = Math.Clamp(houseKind, 0, 2);
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(180);
+        ImGui.Combo("District", ref houseZone, "Any district\0Mist\0The Lavender Beds\0The Goblet\0Shirogane\0Empyreum\0");
+        houseZone = Math.Clamp(houseZone, 0, Housing.Districts.Length);
+        ImGui.SameLine();
+        ImGui.Checkbox("Subdivision", ref houseSub);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Must match. A main-division address does not match the subdivision.");
+
+        ImGui.SetNextItemWidth(90);
+        ImGui.InputInt("Ward", ref houseWard);
+        houseWard = Math.Clamp(houseWard, 0, 30);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("1–30. 0 means any ward.");
+        if (houseKind != 1)
+        {
             ImGui.SameLine();
-            ImGui.SetNextItemWidth(160);
-            if (ImGui.Combo("Group", ref gIdx, string.Join('\0', Catalog.ConfigGroups) + "\0"))
-            {
-                configGroup = Catalog.ConfigGroups[gIdx];
-                pickedOption = string.Empty;
-                optionPick = 0;
-            }
-            ImGui.SetNextItemWidth(200);
-            ImGui.InputTextWithHint("##oq", "Search setting name", ref optionQuery, 48);
-            ImGui.SameLine();
-            if (ImGui.Button("Browse##cfg"))
-            {
-                var pool = Catalog.InGroup(names, configGroup).ToArray();
-                if (pool.Length == 0) pool = names.ToArray();
-                plugin.OpenPicker("Game setting", pool, v => pickedOption = v, pickedOption);
-            }
-            var hits = Catalog.Filter(Catalog.InGroup(names, configGroup), optionQuery).Take(16).ToArray();
-            if (hits.Length == 0) hits = Catalog.Filter(names, optionQuery).Take(16).ToArray();
-            if (optionPick >= hits.Length) optionPick = 0;
-            ImGui.SetNextItemWidth(280);
-            if (hits.Length > 0 && ImGui.Combo("Setting", ref optionPick, string.Join('\0', hits) + "\0"))
-                pickedOption = hits[optionPick];
-            if (hits.Length > 0 && string.IsNullOrEmpty(pickedOption)) pickedOption = hits[0];
-            var nowVal = Catalog.CurrentSetting(configSection == 0 ? ConfigSection.System : ConfigSection.Ui, pickedOption);
-            CurrentButton(nowVal, v => thenValue = v);
-            ImGui.SetNextItemWidth(120);
-            var onoff = Array.IndexOf(Catalog.ValuesOnOff, thenValue);
-            if (onoff >= 0)
-            {
-                if (ImGui.Combo("Value", ref onoff, "On\0Off\0")) thenValue = Catalog.ValuesOnOff[onoff];
-            }
-            else
-                ImGui.InputTextWithHint("##ov", "on / off / number", ref thenValue, 24);
-            if (!string.IsNullOrWhiteSpace(pickedOption))
-                ImGui.TextDisabled("Will set " + pickedOption + " = " + (string.IsNullOrWhiteSpace(thenValue) ? "(need a value)" : thenValue));
+            ImGui.SetNextItemWidth(90);
+            ImGui.InputInt("Plot", ref housePlot);
+            housePlot = Math.Clamp(housePlot, 0, 60);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("The plot number the client reports, 1–60. 0 means any plot. Subdivision is the checkbox, not a plot number.");
         }
+        else housePlot = 0;
+
+        if (houseKind != 0)
+        {
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(90);
+            ImGui.InputInt(houseKind == 1 ? "Room" : "Room", ref houseRoom);
+            houseRoom = Math.Clamp(houseRoom, 0, 9999);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Apartment or chamber number. 0 means any room. This is not a plot.");
+        }
+        else houseRoom = 0;
+
+        chipValue = Housing.Encode(houseKind, houseZone, houseSub, houseWard, housePlot, houseRoom);
+        ImGui.TextDisabled(snap.Address.Summary);
+        if (snap.Address.Kind != ResidenceKind.None && ImGui.SmallButton("Use this address"))
+        {
+            houseKind = snap.Address.Kind switch
+            {
+                ResidenceKind.Apartment => 1,
+                ResidenceKind.Chamber => 2,
+                _ => 0,
+            };
+            houseZone = Housing.ZoneIndex(snap.Address.District);
+            houseSub = snap.Address.Subdivision;
+            houseWard = snap.Address.Ward;
+            housePlot = snap.Address.Plot;
+            houseRoom = snap.Address.Room;
+            chipValue = Housing.Encode(snap.Address);
+        }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Ward is 1–30. Apartment wings use the room number, not a plot.");
+    }
+
+    private void DrawConfigDraft()
+    {
+        var gIdx = Array.IndexOf(Catalog.ConfigGroups, configGroup);
+        if (gIdx < 0) gIdx = 0;
+        ImGui.SetNextItemWidth(180);
+        if (ImGui.Combo("Group", ref gIdx, string.Join('\0', Catalog.ConfigGroups) + "\0"))
+        {
+            configGroup = Catalog.ConfigGroups[gIdx];
+            pickedOption = string.Empty;
+            optionQuery = string.Empty;
+            optionPick = 0;
+            thenValue = string.Empty;
+        }
+
+        if (configGroup == "All settings")
+        {
+            DrawAllSettings();
+            return;
+        }
+
+        var entries = SettingGuide.InGroup(configGroup)
+            .Where(e => optionQuery.Length == 0
+                || e.Label.Contains(optionQuery, StringComparison.OrdinalIgnoreCase)
+                || e.Option.Contains(optionQuery, StringComparison.OrdinalIgnoreCase)
+                || e.About.Contains(optionQuery, StringComparison.OrdinalIgnoreCase))
+            .Take(24)
+            .ToArray();
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(200);
+        ImGui.InputTextWithHint("##oq", "Search", ref optionQuery, 48);
+        if (entries.Length == 0)
+        {
+            ImGui.TextDisabled("No settings in this group match.");
+            return;
+        }
+
+        var labels = entries.Select(e => e.Label).ToArray();
+        if (optionPick >= entries.Length) optionPick = 0;
+        if (string.IsNullOrEmpty(pickedOption) || entries.All(e => e.Option != pickedOption))
+        {
+            optionPick = 0;
+            pickedOption = entries[0].Option;
+        }
+        else optionPick = Array.FindIndex(entries, e => e.Option == pickedOption);
+
+        ImGui.SetNextItemWidth(320);
+        if (ImGui.Combo("Setting", ref optionPick, string.Join('\0', labels) + "\0"))
+        {
+            pickedOption = entries[optionPick].Option;
+            thenValue = string.Empty;
+        }
+
+        var info = entries[Math.Clamp(optionPick, 0, entries.Length - 1)];
+        pickedOption = info.Option;
+        configSection = info.Section == ConfigSection.System ? 0 : 1;
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(info.Menu + "\n" + info.About);
+        ImGui.TextWrapped(info.About);
+        ImGui.TextDisabled(info.Menu + "  ·  " + info.Option);
+        DrawSettingValue(info);
+    }
+
+    private void DrawAllSettings()
+    {
+        ImGui.SetNextItemWidth(110);
+        if (ImGui.Combo("Section", ref configSection, "System\0UI\0"))
+        {
+            pickedOption = string.Empty;
+            optionQuery = string.Empty;
+            optionPick = 0;
+        }
+        var names = configSection == 0 ? Catalog.SystemOptions : Catalog.UiOptions;
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(200);
+        ImGui.InputTextWithHint("##oq", "Search internal name", ref optionQuery, 48);
+        ImGui.SameLine();
+        if (ImGui.Button("Browse##cfg"))
+            plugin.OpenPicker("Game setting", names.ToArray(), v => pickedOption = v, pickedOption);
+        var hits = Catalog.Filter(names, optionQuery).Take(16).ToArray();
+        if (optionPick >= hits.Length) optionPick = 0;
+        ImGui.SetNextItemWidth(320);
+        if (hits.Length > 0 && ImGui.Combo("Setting", ref optionPick, string.Join('\0', hits) + "\0"))
+            pickedOption = hits[optionPick];
+        if (hits.Length > 0 && string.IsNullOrEmpty(pickedOption)) pickedOption = hits[0];
+        var info = SettingGuide.Find(pickedOption);
+        if (info is not null)
+        {
+            ImGui.TextWrapped(info.About);
+            ImGui.TextDisabled(info.Menu);
+            DrawSettingValue(info);
+            return;
+        }
+
+        var nowVal = Catalog.CurrentSetting(configSection == 0 ? ConfigSection.System : ConfigSection.Ui, pickedOption);
+        if (!string.IsNullOrEmpty(nowVal) && ImGui.SmallButton("current: " + nowVal + " [+]")) thenValue = nowVal;
+        ImGui.SetNextItemWidth(160);
+        ImGui.InputTextWithHint("##ov", "Number the game stores", ref thenValue, 24);
+        ImGui.TextDisabled("Internal name. Unknown words are not written. Graphics names also write the DirectX 11 twin when one exists.");
+    }
+
+    private void DrawSettingValue(SettingInfo info)
+    {
+        var nowVal = Catalog.CurrentSetting(info.Section, info.Option);
+        var shown = SettingGuide.Display(info.Option, nowVal);
+        if (!string.IsNullOrEmpty(nowVal) && ImGui.SmallButton("current: " + shown + " [+]")) thenValue = nowVal;
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use the value the client has right now.");
+
+        if (info.Kind == SettingKind.Choice && info.Choices.Length > 0)
+        {
+            var labels = info.Choices.Select(c => c.Value + "  " + c.Label).ToArray();
+            var idx = Array.FindIndex(info.Choices, c => c.Value == thenValue);
+            if (idx < 0) idx = 0;
+            ImGui.SetNextItemWidth(280);
+            if (ImGui.Combo("Value", ref idx, string.Join('\0', labels) + "\0"))
+                thenValue = info.Choices[idx].Value;
+            if (string.IsNullOrEmpty(thenValue)) thenValue = info.Choices[0].Value;
+            return;
+        }
+
+        if (info.Kind == SettingKind.Toggle)
+        {
+            if (string.IsNullOrEmpty(thenValue)) thenValue = "1";
+            var idx = thenValue == "0" ? 1 : 0;
+            ImGui.SetNextItemWidth(120);
+            if (ImGui.Combo("Value", ref idx, "On\0Off\0")) thenValue = idx == 0 ? "1" : "0";
+            return;
+        }
+
+        if (info.Kind == SettingKind.Volume)
+        {
+            var n = int.TryParse(thenValue, out var parsed) ? parsed : info.Min;
+            ImGui.SetNextItemWidth(180);
+            if (ImGui.SliderInt("Value", ref n, info.Min, info.Max)) thenValue = n.ToString();
+            if (string.IsNullOrEmpty(thenValue)) thenValue = n.ToString();
+            return;
+        }
+
+        ImGui.SetNextItemWidth(160);
+        var hint = info.Kind == SettingKind.Float ? "Decimal" : "Number the game stores";
+        ImGui.InputTextWithHint("##ov", hint, ref thenValue, 24);
+        if (configGroup == "Graphics")
+            ImGui.TextDisabled("This also writes the matching standard or DirectX 11 value when both exist.");
     }
 
     private void DrawPenumbraModDraft()
@@ -439,6 +649,9 @@ public sealed partial class MainWindow
     private void AddThen(Configuration cfg, ThenRule rule)
     {
         var kind = (ThenKind)thenKind;
+        if (kind == ThenKind.Command && string.IsNullOrWhiteSpace(thenValue)) return;
+        if (kind == ThenKind.Config && (string.IsNullOrWhiteSpace(pickedOption) || string.IsNullOrWhiteSpace(thenValue))) return;
+        if (kind == ThenKind.PenumbraMod && string.IsNullOrWhiteSpace(penDir)) return;
         rule.Then.Add(kind switch
         {
             ThenKind.Wait => new ThenRow { Kind = ThenKind.Wait, WaitMs = Math.Max(0, waitMs), Value = waitMs.ToString() },
@@ -471,6 +684,7 @@ public sealed partial class MainWindow
                 Section = configSection == 0 ? ConfigSection.System : ConfigSection.Ui,
                 Option = string.IsNullOrWhiteSpace(pickedOption) ? optionQuery.Trim() : pickedOption,
                 Value = thenValue.Trim(),
+                WaitMs = 50,
             },
             _ => new ThenRow { Kind = ThenKind.Command, Value = thenValue.Trim() },
         });

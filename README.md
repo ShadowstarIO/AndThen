@@ -5,7 +5,7 @@
 ---
 
 > Early development.
-> Version **0.0.1.5** testing.
+> Version **0.0.1.6** testing.
 
 ## What it does
 
@@ -20,9 +20,10 @@ Each THEN row has its own wait in milliseconds, then the action. Settings defaul
 ## Features
 
 * **Folder tree** : left list like Glamourer / Penumbra. Folders expand. Drag a rule onto a folder. Icons at the bottom of the list. Nested folders use `/`.
-* **Conditions** : pick a menu (You / Place / Party / Time / Target / Account) then the option. Housing expands to Ward / Plot / Room. World lists filter by Data Center.
-* **Live chips** : teal means that chip is true right now. Click a chip to edit it.
-* **THEN rows** : wait ms, action, options, up/down or drag to reorder. Editable in place.
+* **Conditions** : state, job, role, zone, world, data center, party, duty, group, time, weather, nearby, place, target, online status, account (home or visiting), mount, level, and housing. A housing chip is a district, ward (1–30), plot, subdivision, and apartment or chamber room. Subdivision has to match on its own. Apartment rooms are not plots.
+* **Live chips** : teal means that chip is true right now. Click a chip to remove it.
+* **THEN rows** : run in order. Click a row to remove it. Each row can wait before it runs.
+* **Game settings** : grouped the way the configuration menus are. Labels and choices follow the options players see, including battle effects, nameplates, sound, and graphics. A graphics option writes both the standard value and the DirectX 11 value. Unknown words are not written as zero.
 * **Penumbra** : search installed mods, store the current collection settings, apply them as temporary settings on you (or permanently into the collection). Reset clears AndThen temporary settings.
 * **Quiet** : Settings can block Auto and Dialog during cutscenes, combat, duty, and similar states. `/atn Name` and Test still run.
 * **Share** : JSON or `AT1.` from the rule. Settings can copy every rule at once. Imports start Off.

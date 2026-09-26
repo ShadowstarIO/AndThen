@@ -200,6 +200,7 @@ internal sealed class Engine
                     ? (row.WaitMs > 0 ? row.WaitMs : ParseWait(row.Value))
                     : Math.Max(row.WaitMs, 0);
                 if (row.Kind == ThenKind.Config && ms < 50) ms = 50;
+                if (row.Kind is ThenKind.PenumbraMod or ThenKind.PenumbraReset && ms < 50) ms = 50;
                 if (row.Kind == ThenKind.Logout && ms < 500) ms = 500;
                 if (row.Kind == ThenKind.Exit && ms < 1000) ms = 1000;
                 if (ms > 0)

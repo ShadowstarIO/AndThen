@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using Lumina.Excel.Sheets;
 
 namespace AndThen;
@@ -29,6 +30,11 @@ public sealed class GameSnapshot
     public string Weekday { get; init; } = string.Empty;
     public string Weather { get; init; } = string.Empty;
     public string OnlineStatus { get; init; } = string.Empty;
+    public int Level { get; init; }
+    public string Mount { get; init; } = "none";
+    public string HomeWorldName { get; init; } = string.Empty;
+    public string Account { get; init; } = string.Empty;
+    public HousingAddress Address { get; init; }
     public HashSet<string> States { get; init; } = [];
     public HashSet<string> Places { get; init; } = [];
 
@@ -65,6 +71,13 @@ public sealed class GameSnapshot
         var eorzeaHour = (int)((unix * 3600.0 / 175.0 / 3600.0) % 24);
         var places = PlacesOf(intended);
         var online = player?.OnlineStatus.ValueNullable?.Name.ToString() ?? string.Empty;
+        var home = player?.HomeWorld.ValueNullable?.Name.ToString() ?? string.Empty;
+        var worldName = world?.Name.ToString() ?? string.Empty;
+        var account = home.Length == 0 || worldName.Length == 0
+            ? string.Empty
+            : home.Equals(worldName, StringComparison.OrdinalIgnoreCase) ? "Home" : "Visiting";
+        var level = player is null ? 0 : player.Level;
+        var address = logged ? Housing.Read(territoryId) : default;
 
         var states = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         Add(states, "LoggedIn", logged);
@@ -112,7 +125,7 @@ public sealed class GameSnapshot
             TerritoryName = territory?.PlaceName.ValueNullable?.Name.ToString() ?? string.Empty,
             IntendedUse = intended,
             Place = PrimaryPlace(places),
-            WorldName = world?.Name.ToString() ?? string.Empty,
+            WorldName = worldName,
             DataCenterName = dc?.Name.ToString() ?? string.Empty,
             JobId = job?.RowId ?? 0,
             JobAbbr = job?.Abbreviation.ToString() ?? string.Empty,
@@ -126,15 +139,24 @@ public sealed class GameSnapshot
             Weekday = now.DayOfWeek.ToString(),
             Weather = ReadWeather(),
             OnlineStatus = online,
+            Level = level,
+            Mount = ReadMount(player),
+            HomeWorldName = home,
+            Account = account,
+            Address = address,
             States = states,
             Places = places,
         };
     }
 
-    public string Line() =>
-        LoggedIn
-            ? $"{JobAbbr} · {Group} · {Place} · {WorldName} · {TerritoryName} · ET {EorzeaHour:00} · {Weather} · {OnlineStatus} · tgt {Target}"
-            : "Not logged in";
+    public string Line()
+    {
+        if (!LoggedIn) return "Not logged in";
+        var house = Address.Kind == ResidenceKind.None ? string.Empty : " · " + Address.Summary;
+        var mount = Mount is "none" or "" ? string.Empty : " · " + Mount;
+        var visit = Account == "Visiting" && HomeWorldName.Length > 0 ? $" · home {HomeWorldName}" : string.Empty;
+        return $"{JobAbbr} {Level} · {Group} · {Place} · {WorldName}{visit} · {TerritoryName} · ET {EorzeaHour:00} · {Weather} · {OnlineStatus} · tgt {Target}{mount}{house}";
+    }
 
     public bool HasPlace(string value) => Places.Contains(value);
 
@@ -239,6 +261,27 @@ public sealed class GameSnapshot
         foreach (var key in new[] { "PvP", "DeepDungeon", "Field", "Housing", "Inn", "Town", "GoldSaucer", "Indoor", "Overworld", "Sanctuary", "Dungeon", "Trial", "Raid", "Alliance" })
             if (places.Contains(key)) return key;
         return "Overworld";
+    }
+
+    private static string ReadMount(Dalamud.Game.ClientState.Objects.Types.IGameObject? player)
+    {
+        if (player is null) return "none";
+        try
+        {
+            unsafe
+            {
+                var character = (Character*)player.Address;
+                var id = character->Mount.MountId;
+                if (id == 0) return "none";
+                var row = Plugin.DataManager.GetExcelSheet<Mount>().GetRowOrDefault(id);
+                var name = row?.Singular.ToString() ?? string.Empty;
+                return string.IsNullOrWhiteSpace(name) ? id.ToString() : name;
+            }
+        }
+        catch
+        {
+            return "none";
+        }
     }
 
     private static string ReadWeather()
