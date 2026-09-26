@@ -3,10 +3,10 @@
     "Author": "Xoza",
     "Name": "AndThen",
     "Punchline": "When conditions match, apply settings and run commands.",
-    "Description": "Folders of rules. AND, OR, and NOT chips. When a rule becomes true it sets game options, online status, and slash commands. Rules do not revert — write another rule for the other state.",
+    "Description": "Folders of rules. AND, OR, and NOT chips. When a rule becomes true it sets game options, online status, slash commands, and Penumbra mod settings. Rules do not revert — write another rule for the other state.",
     "InternalName": "AndThen",
     "AssemblyVersion": "0.0.1.0",
-    "TestingAssemblyVersion": "0.0.1.2",
+    "TestingAssemblyVersion": "0.0.1.6",
     "RepoUrl": "https://github.com/ShadowstarIO/AndThen",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -14,12 +14,12 @@
     "IsHide": false,
     "IsTestingExclusive": false,
     "DownloadCount": 0,
-    "LastUpdate": 1789862460,
+    "LastUpdate": 1790445679,
     "LoadPriority": 0,
     "IconUrl": "https://raw.githubusercontent.com/ShadowstarIO/AndThen/main/images/icon.png",
     "DownloadLinkInstall": "https://github.com/ShadowstarIO/AndThen/releases/download/v0.0.1.0/AndThen.zip",
     "DownloadLinkUpdate": "https://github.com/ShadowstarIO/AndThen/releases/download/v0.0.1.0/AndThen.zip",
-    "DownloadLinkTesting": "https://github.com/ShadowstarIO/AndThen/releases/download/v0.0.1.2/AndThen.zip",
-    "Tags": ["settings", "commands", "conditions", "hud", "fps", "graphics"]
+    "DownloadLinkTesting": "https://github.com/ShadowstarIO/AndThen/releases/download/v0.0.1.6/AndThen.zip",
+    "Tags": ["settings", "commands", "conditions", "hud", "fps", "graphics", "penumbra"]
   }
 ]
