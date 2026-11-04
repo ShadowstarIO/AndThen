@@ -1,6 +1,26 @@
-# AndThen
+<p align="center">
+  <img src="images/icon.png" width="160" alt="AndThen icon: three amber rules flowing through a teal arrow into a stack of actions" />
+</p>
 
-*When conditions match, apply settings and run commands. Built on Dalamud.*
+<h1 align="center">AndThen</h1>
+
+<p align="center">
+  <a href="https://github.com/ShadowstarIO/AndThen/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ShadowstarIO/AndThen?include_prereleases&style=flat-square&color=blue"></a>
+  <a href="https://github.com/ShadowstarIO/AndThen/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/ShadowstarIO/AndThen/total?style=flat-square&color=blue&cacheSeconds=300"></a>
+  <a href="https://github.com/ShadowstarIO/AndThen/actions/workflows/build.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/ShadowstarIO/AndThen/build.yml?style=flat-square"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
+  <img alt="Status: testing" src="https://img.shields.io/badge/status-testing-d4922a?style=flat-square">
+</p>
+
+<p align="center">
+  <em>When conditions match, apply settings and run commands. Built on Dalamud.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ShadowstarIO/xiv"><b>Install from the Shadowstar catalog</b></a> ·
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#features">Features</a>
+</p>
 
 ---
 
