@@ -9,15 +9,23 @@
   <a href="https://github.com/ShadowstarIO/AndThen/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/ShadowstarIO/AndThen/total?style=flat-square&color=blue&cacheSeconds=300"></a>
   <a href="https://github.com/ShadowstarIO/AndThen/actions/workflows/build.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/ShadowstarIO/AndThen/build.yml?style=flat-square"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
-  <img alt="Status: testing" src="https://img.shields.io/badge/status-testing-d4922a?style=flat-square">
+  <img alt="Status: replaced by Starflow" src="https://img.shields.io/badge/status-replaced%20by%20Starflow-7a7a7a?style=flat-square">
 </p>
+
+> [!IMPORTANT]
+> **AndThen is no longer supported. It has been replaced by [Starflow](https://github.com/ShadowstarIO/Starflow).**
+> Starflow does what AndThen does, plus more. Install it from the [Shadowstar catalog](https://github.com/ShadowstarIO/XIV).
+>
+> **Bring your rules over:** in AndThen, open Settings and copy every rule (or right-click one rule and pick **Copy AT1**). In Starflow, click **Import**, pick **AndThen**, and paste. Rules come in off.
+>
+> AndThen stays here for reference. It is not updated and is no longer listed in the Shadowstar catalog.
 
 <p align="center">
   <em>When conditions match, apply settings and run commands. Built on Dalamud.</em>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ShadowstarIO/xiv"><b>Install from the Shadowstar catalog</b></a> ·
+  <a href="https://github.com/ShadowstarIO/Starflow"><b>Use Starflow instead</b></a> ·
   <a href="#what-it-does">What it does</a> ·
   <a href="#features">Features</a>
 </p>
@@ -51,7 +59,9 @@ Each THEN row has its own wait in milliseconds, then the action. Settings defaul
 
 ## Install
 
-Testing build from [Releases](https://github.com/ShadowstarIO/AndThen/releases). Open `/andthen` after install.
+For new setups, install [Starflow](https://github.com/ShadowstarIO/Starflow) instead.
+
+The last AndThen build is still in [Releases](https://github.com/ShadowstarIO/AndThen/releases), and this repo's own link below still works. Open `/andthen` after install.
 
 ```
 https://raw.githubusercontent.com/ShadowstarIO/AndThen/main/repo.json

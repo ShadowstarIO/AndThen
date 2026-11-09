@@ -2,8 +2,8 @@
   {
     "Author": "Xoza",
     "Name": "AndThen",
-    "Punchline": "When conditions match, apply settings and run commands.",
-    "Description": "Folders of rules. AND, OR, and NOT chips. When a rule becomes true it sets game options, online status, slash commands, and Penumbra mod settings. Rules do not revert — write another rule for the other state.",
+    "Punchline": "No longer supported. Replaced by Starflow.",
+    "Description": "No longer supported. Replaced by Starflow, which imports your rules. Find Starflow in the Shadowstar catalog: https://github.com/ShadowstarIO/XIV",
     "InternalName": "AndThen",
     "AssemblyVersion": "0.0.1.0",
     "TestingAssemblyVersion": "0.0.1.6",
